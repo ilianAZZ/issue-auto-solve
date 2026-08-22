@@ -54,6 +54,17 @@ export interface EventRow {
   created_at: string;
 }
 
+export interface BootstrapRow {
+  id: number;
+  repo_id: number;
+  status: string;
+  instructions: string;
+  log_path: string;
+  result: string | null;
+  started_at: string;
+  ended_at: string | null;
+}
+
 export class Store {
   constructor(private readonly db: Db) {}
 
@@ -65,6 +76,10 @@ export class Store {
       )
       .run(fullName, enabled ? 1 : 0, JSON.stringify(settings ?? {}));
     return this.repoByName(fullName)!;
+  }
+
+  removeRepo(fullName: string): void {
+    this.db.prepare('DELETE FROM repos WHERE full_name = ?').run(fullName);
   }
 
   repoByName(fullName: string): RepoRow | undefined {
@@ -236,6 +251,26 @@ export class Store {
     return this.db
       .prepare('SELECT * FROM events WHERE task_id = ? ORDER BY id DESC LIMIT ?')
       .all(taskId, limit) as unknown as EventRow[];
+  }
+
+  startBootstrap(repoId: number, instructions: string, logPath: string): number {
+    this.db
+      .prepare('INSERT INTO bootstrap_runs (repo_id, instructions, log_path, started_at) VALUES (?, ?, ?, ?)')
+      .run(repoId, instructions, logPath, now());
+    const row = this.db.prepare('SELECT id FROM bootstrap_runs ORDER BY id DESC LIMIT 1').get() as { id: number };
+    return row.id;
+  }
+
+  finishBootstrap(id: number, status: string, result: string | null): void {
+    this.db
+      .prepare('UPDATE bootstrap_runs SET status = ?, result = ?, ended_at = ? WHERE id = ?')
+      .run(status, result, now(), id);
+  }
+
+  lastBootstrap(repoId: number): BootstrapRow | undefined {
+    return this.db
+      .prepare('SELECT * FROM bootstrap_runs WHERE repo_id = ? ORDER BY id DESC LIMIT 1')
+      .get(repoId) as BootstrapRow | undefined;
   }
 
   meta(key: string): string | null {

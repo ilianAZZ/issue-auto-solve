@@ -4,6 +4,8 @@ import { loadEnv, loadGlobalConfig } from './config/index.js';
 import { openDatabase } from './db/index.js';
 import { Store } from './db/store.js';
 import { Orchestrator } from './core/orchestrator.js';
+import { Credentials } from './core/credentials.js';
+import { SecretStore } from './db/secrets.js';
 import { createServer } from './server/app.js';
 import { logger } from './util/log.js';
 
@@ -17,14 +19,21 @@ async function main() {
 
   const db = openDatabase(join(resolve(env.STATE_DIR), 'issue-auto-solve.db'));
   const store = new Store(db);
-  const orchestrator = new Orchestrator(env, config, store);
+  const secrets = new SecretStore(db, join(resolve(env.STATE_DIR), 'master.key'));
+  const credentials = new Credentials(env, secrets);
+  const orchestrator = new Orchestrator(env, config, store, credentials);
+  orchestrator.seedRepositories();
 
-  const server = await createServer(env, store, orchestrator);
+  const server = await createServer(env, store, orchestrator, credentials);
   await server.listen({ port: env.PORT, host: '0.0.0.0' });
   log.info(`dashboard on ${env.PUBLIC_URL}`);
 
   await orchestrator.start();
-  log.info(`polling every ${config.poll_interval_seconds}s, ${config.max_concurrent_runs} run(s) at a time`);
+  log.info(
+    orchestrator.configured
+      ? `polling every ${config.poll_interval_seconds}s, ${config.max_concurrent_runs} run(s) at a time`
+      : `setup incomplete — finish it at ${env.PUBLIC_URL}`,
+  );
 
   const shutdown = async () => {
     log.info('shutting down');

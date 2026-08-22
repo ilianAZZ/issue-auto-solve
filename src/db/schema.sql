@@ -57,6 +57,17 @@ CREATE TABLE IF NOT EXISTS events (
 
 CREATE INDEX IF NOT EXISTS events_task_idx ON events (task_id, id DESC);
 
+CREATE TABLE IF NOT EXISTS bootstrap_runs (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  repo_id      INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+  status       TEXT NOT NULL DEFAULT 'running',
+  instructions TEXT NOT NULL DEFAULT '',
+  log_path     TEXT NOT NULL,
+  result       TEXT,
+  started_at   TEXT NOT NULL,
+  ended_at     TEXT
+);
+
 CREATE TABLE IF NOT EXISTS meta (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL

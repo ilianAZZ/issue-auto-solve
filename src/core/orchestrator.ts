@@ -2,7 +2,8 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Env, GlobalConfig, RepoSettings } from '../config/index.js';
-import { resolveRepoSettings } from '../config/index.js';
+import type { Credentials } from './credentials.js';
+import { builtinDefaults, resolveRepoSettings } from '../config/index.js';
 import type { Store, TaskRow } from '../db/store.js';
 import { GitHub, type RepoAccess } from '../github/client.js';
 import { answerAfter, fetchRepoFile, existingWork, getIssue, lastCommentBy, listUpdatedIssues, setLabel } from '../github/issues.js';
@@ -23,11 +24,13 @@ interface RepoContext {
 }
 
 export class Orchestrator {
-  private readonly github: GitHub;
+  private github: GitHub | null = null;
   private readonly notify: Notify;
   private readonly contexts = new Map<string, RepoContext>();
   private readonly inflight = new Set<number>();
   private timer: NodeJS.Timeout | null = null;
+  private signature = '';
+  private identityResolved = false;
   private ticking = false;
   private botLogin = 'issue-auto-solve[bot]';
 
@@ -35,18 +38,36 @@ export class Orchestrator {
     private readonly env: Env,
     private readonly config: GlobalConfig,
     private readonly store: Store,
+    private readonly credentials: Credentials,
   ) {
-    this.github = new GitHub(env);
     this.notify = notifier(env.DISCORD_WEBHOOK_URL, log);
   }
 
-  async start(): Promise<void> {
-    try {
-      this.botLogin = await this.github.botIdentity();
-      log.info(`agent identity: ${this.botLogin}`);
-    } catch (error) {
-      log.error('cannot reach GitHub, the dashboard stays up and ticks keep retrying', { error: String(error) });
+  /** Credentials can arrive from the dashboard long after boot, so the client is built per tick. */
+  private client(): GitHub | null {
+    const creds = this.credentials.github();
+    if (!creds) return null;
+    const signature = JSON.stringify([creds.mode, creds.appId, creds.token?.slice(-8)]);
+    if (!this.github || this.signature !== signature) {
+      this.signature = signature;
+      this.github = new GitHub(creds);
+      this.contexts.clear();
+      this.identityResolved = false;
     }
+    return this.github;
+  }
+
+  /** Called when the dashboard saves new credentials or adds a repository. */
+  reload(): void {
+    this.contexts.clear();
+    void this.tick();
+  }
+
+  get configured(): boolean {
+    return Boolean(this.credentials.github()) && Boolean(this.credentials.claudeToken());
+  }
+
+  async start(): Promise<void> {
     this.recoverInterrupted();
     await this.tick();
     this.timer = setInterval(() => void this.tick(), this.config.poll_interval_seconds * 1000);
@@ -81,6 +102,16 @@ export class Orchestrator {
     if (this.ticking) return;
     this.ticking = true;
     try {
+      const github = this.client();
+      if (!github) {
+        log.debug('no GitHub credentials yet, waiting for the setup to complete');
+        return;
+      }
+      if (!this.identityResolved) {
+        this.botLogin = await github.botIdentity();
+        this.identityResolved = true;
+        log.info(`agent identity: ${this.botLogin}`);
+      }
       await this.loadRepositories();
       await this.resumeAnswered();
       await this.syncIssues();
@@ -93,26 +124,33 @@ export class Orchestrator {
     }
   }
 
-  private async loadRepositories(): Promise<void> {
+  seedRepositories(): void {
     for (const entry of this.config.repositories) {
-      const row = this.store.upsertRepo(entry.repo, entry.enabled, entry.settings ?? {});
-      if (!entry.enabled) {
-        this.contexts.delete(entry.repo);
+      if (this.store.repoByName(entry.repo)) continue;
+      this.store.upsertRepo(entry.repo, entry.enabled, entry.settings ?? {});
+    }
+  }
+
+  private async loadRepositories(): Promise<void> {
+    for (const row of this.store.repos()) {
+      if (!row.enabled) {
+        this.contexts.delete(row.full_name);
         continue;
       }
-      if (this.contexts.has(entry.repo)) continue;
+      if (this.contexts.has(row.full_name)) continue;
+      const overrides = JSON.parse(row.settings_json || '{}') as { config_path?: string };
       try {
-        const access = await this.github.access(entry.repo);
+        const access = await this.gh().access(row.full_name);
         if (access.installationId) this.store.setInstallation(row.id, access.installationId);
-        const configPath = (entry.settings as { config_path?: string })?.config_path ?? this.config.defaults.config_path ?? '.issue-auto-solve.yml';
+        const configPath = overrides.config_path ?? this.config.defaults.config_path ?? '.issue-auto-solve.yml';
         const file = await fetchRepoFile(access, configPath);
-        const settings = resolveRepoSettings(this.config, entry.settings, file);
-        this.contexts.set(entry.repo, { id: row.id, fullName: entry.repo, settings });
+        const settings = resolveRepoSettings(this.config, overrides, file);
+        this.contexts.set(row.full_name, { id: row.id, fullName: row.full_name, settings });
         this.store.setRepoError(row.id, null);
-        log.info(`watching ${entry.repo}`, { base: settings.base_branch, configured: Boolean(file) });
+        log.info(`watching ${row.full_name}`, { base: settings.base_branch, configured: Boolean(file) });
       } catch (error) {
         this.store.setRepoError(row.id, String(error));
-        log.error(`cannot watch ${entry.repo}`, { error: String(error) });
+        log.error(`cannot watch ${row.full_name}`, { error: String(error) });
       }
     }
   }
@@ -121,7 +159,7 @@ export class Orchestrator {
     for (const task of this.store.byState('waiting_human')) {
       const context = this.contextFor(task);
       if (!context) continue;
-      const access = await this.github.access(context.fullName);
+      const access = await this.gh().access(context.fullName);
       const answer = await answerAfter(access, task.number, task.waiting_comment_id, this.botLogin);
       if (!answer) continue;
       await setLabel(access, task.number, context.settings.labels.waiting, false);
@@ -136,7 +174,7 @@ export class Orchestrator {
       const repo = this.store.repos().find((r) => r.id === context.id);
       const cursor = now();
       try {
-        const access = await this.github.access(context.fullName);
+        const access = await this.gh().access(context.fullName);
         const issues = await listUpdatedIssues(access, repo?.last_sync_at ?? null);
         for (const issue of issues) {
           const known = this.store.taskByNumber(context.id, issue.number);
@@ -243,7 +281,7 @@ export class Orchestrator {
 
   private async claim(context: RepoContext, task: TaskRow): Promise<TaskRow | null> {
     const branch = render(context.settings.branch_pattern, { number: task.number });
-    const access = await this.github.access(context.fullName);
+    const access = await this.gh().access(context.fullName);
     const work = await existingWork(access, task.number, branch);
     if (work.pullRequest) {
       this.store.transition(task.id, 'skipped', { pr_url: work.pullRequest, reason: 'a pull request already exists' });
@@ -264,7 +302,7 @@ export class Orchestrator {
     this.store.transition(task.id, 'running', { branch: task.branch, phase: 'workspace' }, 'run started');
 
     try {
-      const access = await this.github.access(context.fullName);
+      const access = await this.gh().access(context.fullName);
       const issue = await getIssue(access, task.number);
       const branch = task.branch ?? render(context.settings.branch_pattern, { number: task.number });
 
@@ -318,7 +356,7 @@ export class Orchestrator {
     branch: string,
     workspacePath: string,
   ): Promise<void> {
-    const access = await this.github.access(context.fullName);
+    const access = await this.gh().access(context.fullName);
     const run = this.store.run(runId);
     const work = await existingWork(access, task.number, branch);
 
@@ -385,7 +423,7 @@ export class Orchestrator {
 
   private containerEnv(context: RepoContext, access: RepoAccess): Record<string, string> {
     const env: Record<string, string> = {
-      CLAUDE_CODE_OAUTH_TOKEN: this.env.CLAUDE_CODE_OAUTH_TOKEN,
+      CLAUDE_CODE_OAUTH_TOKEN: this.credentials.claudeToken() ?? '',
       GH_TOKEN: access.token,
       GITHUB_TOKEN: access.token,
     };
@@ -399,6 +437,82 @@ export class Orchestrator {
   /** Volumes are mounted by the host daemon, so paths must be host paths when issue-auto-solve itself runs in a container. */
   private hostPath(local: string, localRoot: string, hostRoot?: string): string {
     return hostRoot ? join(hostRoot, relative(resolve(localRoot), local)) : local;
+  }
+
+  /** Generates .issue-auto-solve.yml for a repository by reading it, and opens a pull request. */
+  async bootstrap(fullName: string, instructions: string): Promise<void> {
+    const row = this.store.repoByName(fullName);
+    if (!row) throw new Error(`unknown repository ${fullName}`);
+    const logPath = join(resolve(this.env.LOG_DIR), `bootstrap-${row.id}-${Date.now()}.log`);
+    mkdirSync(dirname(logPath), { recursive: true });
+    const id = this.store.startBootstrap(row.id, instructions, logPath);
+
+    try {
+      const access = await this.gh().access(fullName);
+      const repo = await access.octokit.repos.get({ owner: access.owner, repo: access.name });
+      const baseBranch = repo.data.default_branch;
+      const settings: RepoSettings = {
+        ...builtinDefaults,
+        base_branch: baseBranch,
+        runtime: { ...builtinDefaults.runtime, image: this.config.bootstrap.image, setup: this.config.bootstrap.setup },
+      };
+
+      const workspace = await prepareWorkspace({
+        root: resolve(this.env.WORKSPACE_DIR),
+        fullName,
+        token: access.token,
+        baseBranch,
+        branch: 'issue-auto-solve/config',
+        actor: { name: this.botLogin, email: `${this.botLogin}@users.noreply.github.com` },
+      });
+
+      const template = readFileSync(join(here, '..', '..', 'prompts', 'bootstrap.md'), 'utf8');
+      const prompt = render(template, {
+        repo: fullName,
+        base_branch: baseBranch,
+        instructions: instructions.trim() || 'Nothing specific — infer everything from the repository.',
+      });
+      const controlPath = join(resolve(this.env.STATE_DIR), 'control', `bootstrap-${id}`);
+
+      const result = await runContainer(
+        {
+          runId: id,
+          image: settings.runtime.image,
+          settings,
+          workspacePath: workspace.path,
+          hostWorkspacePath: this.hostPath(workspace.path, this.env.WORKSPACE_DIR, this.env.HOST_WORKSPACE_DIR),
+          controlPath,
+          hostControlPath: this.hostPath(controlPath, this.env.STATE_DIR, this.env.HOST_STATE_DIR),
+          logPath,
+          prompt,
+          env: {
+            CLAUDE_CODE_OAUTH_TOKEN: this.credentials.claudeToken() ?? '',
+            GH_TOKEN: access.token,
+            GITHUB_TOKEN: access.token,
+          },
+          timeoutMinutes: 20,
+        },
+        log,
+      );
+
+      const work = await existingWork(access, 0, 'issue-auto-solve/config');
+      this.store.finishBootstrap(
+        id,
+        work.pullRequest ? 'succeeded' : 'failed',
+        work.pullRequest ?? `no pull request opened (container ${result.status})`,
+      );
+      discardWorkspace(workspace.path);
+      if (work.pullRequest) await this.notify(`⚙️ ${fullName}: configuration proposed → ${work.pullRequest}`);
+    } catch (error) {
+      this.store.finishBootstrap(id, 'failed', String(error));
+      log.error(`bootstrap failed for ${fullName}`, { error: String(error) });
+    }
+  }
+
+  private gh(): GitHub {
+    const github = this.client();
+    if (!github) throw new Error('GitHub is not configured yet');
+    return github;
   }
 
   private contextFor(task: TaskRow): RepoContext | undefined {

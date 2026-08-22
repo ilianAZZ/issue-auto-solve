@@ -9,6 +9,8 @@ import type { Orchestrator } from '../core/orchestrator.js';
 import { TASK_STATES } from '../core/states.js';
 import { logger } from '../util/log.js';
 import { interpret, verifySignature } from './webhook.js';
+import { registerSetup } from './setup.js';
+import type { Credentials } from '../core/credentials.js';
 
 const log = logger('server');
 const webRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'web');
@@ -23,19 +25,23 @@ const decorate = (store: Store) => (task: TaskRow) => {
   };
 };
 
-export async function createServer(env: Env, store: Store, orchestrator: Orchestrator) {
+export async function createServer(env: Env, store: Store, orchestrator: Orchestrator, credentials: Credentials) {
   const app = Fastify({ logger: false, bodyLimit: 8 * 1024 * 1024 });
   const view = decorate(store);
 
-  app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
+  // The webhook signature is computed over the exact bytes GitHub sent, so the raw body is
+  // kept alongside the parsed one instead of replacing it.
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (request, body, done) => {
+    (request as { rawBody?: string }).rawBody = body as string;
     try {
-      done(null, { raw: body as string, parsed: JSON.parse(body as string) });
+      done(null, body === '' ? {} : JSON.parse(body as string));
     } catch (error) {
       done(error as Error, undefined);
     }
   });
 
   await app.register(fastifyStatic, { root: webRoot, prefix: '/' });
+  registerSetup(app, env, store, credentials, orchestrator);
 
   app.get('/api/overview', async () => {
     const tasks = TASK_STATES.flatMap((state) => store.byState(state));
@@ -97,15 +103,16 @@ export async function createServer(env: Env, store: Store, orchestrator: Orchest
   });
 
   app.post('/webhooks/github', async (request, reply) => {
-    const body = request.body as { raw: string; parsed: Record<string, unknown> };
-    if (env.GITHUB_WEBHOOK_SECRET) {
+    const raw = (request as { rawBody?: string }).rawBody ?? '';
+    const secret = credentials.webhookSecret();
+    if (secret) {
       const signature = request.headers['x-hub-signature-256'] as string | undefined;
-      if (!verifySignature(env.GITHUB_WEBHOOK_SECRET, body.raw, signature)) {
+      if (!verifySignature(secret, raw, signature)) {
         return reply.code(401).send({ error: 'bad signature' });
       }
     }
     const event = request.headers['x-github-event'] as string;
-    const hint = interpret(event, body.parsed);
+    const hint = interpret(event, (request.body ?? {}) as Record<string, unknown>);
     if (hint) {
       log.info(`webhook ${hint.kind} on ${hint.repo}${hint.number ? `#${hint.number}` : ''}`);
       void orchestrator.tick();

@@ -39,11 +39,23 @@ token the agent writes under your own login and no rule can tell the two apart.
 
 ```bash
 git clone https://github.com/<you>/issue-auto-solve && cd issue-auto-solve
-cp .env.example .env            # credentials
-$EDITOR config/issue-auto-solve.yml    # repositories and defaults
 docker compose up -d --build
 open http://localhost:8420
 ```
+
+The first screen is the setup, and it needs no text editor:
+
+1. **GitHub** — one button creates the App from your browser through GitHub's manifest
+   flow: GitHub sets the four permissions and three events itself and hands the
+   credentials back, which are stored encrypted. A personal token also works, behind a
+   disclosure, with the caveat that the agent then writes under your login.
+2. **Claude** — Claude Code has no browser flow for third parties, so this step stays a
+   terminal one: run `claude setup-token` and paste the result.
+3. **Repositories** — add `owner/name`. **Generate config** then has the agent read the
+   repository and open a pull request adding its `.issue-auto-solve.yml`.
+
+Anything set in the environment wins over the dashboard and shows as locked there, so an
+existing `.env` deployment keeps working untouched.
 
 Start with `dispatch_enabled: false`: issue-auto-solve syncs, classifies and shows the whole
 backlog without ever starting a run. Flip it once the dashboard shows what you expect.

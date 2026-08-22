@@ -176,3 +176,92 @@ document.addEventListener('keydown', (e) => e.key === 'Escape' && closeDrawer())
 
 refresh();
 setInterval(refresh, 4000);
+
+// ---------------------------------------------------------------- setup view
+const post = (path, body) =>
+  fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body ?? {}) });
+
+function showSetup(show) {
+  $('setup').hidden = !show;
+  if (show) refreshSetup();
+}
+
+async function refreshSetup() {
+  const [status, repos] = await Promise.all([api('/api/setup/status'), api('/api/repos')]);
+
+  const gh = $('gh-badge');
+  gh.textContent = status.github ? `connected (${status.github.slug ?? status.github.mode})` : 'not connected';
+  gh.classList.toggle('ok', Boolean(status.github));
+  $('cl-badge').textContent = status.claude ? 'connected' : 'not connected';
+  $('cl-badge').classList.toggle('ok', status.claude);
+  $('repo-badge').textContent = repos.length ? `${repos.length} watched` : 'none';
+  $('repo-badge').classList.toggle('ok', repos.length > 0);
+
+  for (const [id, locked] of [['card-github', status.locked.github], ['card-claude', status.locked.claude]]) {
+    if (!locked) continue;
+    const badge = $(id).querySelector('.badge');
+    badge.textContent = 'set in the environment';
+    badge.classList.add('ok');
+    for (const control of $(id).querySelectorAll('input, button')) control.disabled = true;
+  }
+
+  $('repo-list').innerHTML = repos.length
+    ? repos
+        .map((repo) => {
+          const boot = repo.bootstrap;
+          const state = repo.last_error
+            ? `<span class="state" style="color:var(--red)">${escapeHtml(repo.last_error.slice(0, 60))}</span>`
+            : boot?.status === 'running'
+              ? '<span class="state">generating config…</span>'
+              : boot?.status === 'succeeded'
+                ? `<a class="state" href="${boot.result}" target="_blank" rel="noreferrer">config PR opened</a>`
+                : `<span class="state">${repo.last_sync_at ? 'synced ' + ago(repo.last_sync_at) + ' ago' : 'never synced'}</span>`;
+          return `<li>
+            <span class="name">${repo.full_name}</span>${state}
+            <button class="button" data-boot="${repo.full_name}">Generate config</button>
+            <button class="button" data-del="${repo.full_name}">Remove</button>
+          </li>`;
+        })
+        .join('')
+    : '<li class="muted">No repository yet.</li>';
+
+  for (const button of $('repo-list').querySelectorAll('[data-del]')) {
+    button.addEventListener('click', async () => {
+      await fetch(`/api/repos/${button.dataset.del}`, { method: 'DELETE' });
+      refreshSetup();
+    });
+  }
+  for (const button of $('repo-list').querySelectorAll('[data-boot]')) {
+    button.addEventListener('click', async () => {
+      const instructions = prompt(
+        `Anything the agent should know about ${button.dataset.boot}?\n\nFor example: "pull requests target dev", "tests need a Docker daemon", "never touch anything labelled legal".`,
+        '',
+      );
+      if (instructions === null) return;
+      await post(`/api/repos/${button.dataset.boot}/bootstrap`, { instructions });
+      refreshSetup();
+    });
+  }
+}
+
+$('open-setup').addEventListener('click', () => showSetup(true));
+$('setup-done').addEventListener('click', () => showSetup(false));
+$('gh-create').addEventListener('click', () => {
+  const params = new URLSearchParams({ name: $('gh-app-name').value.trim() });
+  const org = $('gh-org').value.trim();
+  if (org) params.set('org', org);
+  window.location.href = `/setup/github/new?${params}`;
+});
+$('gh-token-save').addEventListener('click', async () => {
+  const response = await post('/api/setup/github/token', { token: $('gh-token').value });
+  if (!response.ok) alert((await response.json()).error);
+  $('gh-token').value = '';
+  refreshSetup();
+});
+$('cl-save').addEventListener('click', async () => {
+  await post('/api/setup/claude', { token: $('cl-token').value });
+  $('cl-token').value = '';
+  refreshSetup();
+});
+
+api('/api/setup/status').then((status) => showSetup(!status.complete));

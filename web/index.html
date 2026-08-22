@@ -20,8 +20,60 @@
     <span id="capacity">–</span>
     <span class="sep">·</span>
     <span id="tick">–</span>
+    <button class="button" id="open-setup">Setup</button>
   </div>
 </header>
+
+<section class="setup" id="setup" hidden>
+  <div class="setup-inner">
+    <h1>Set up issue-auto-solve</h1>
+    <p class="lede">Three things, once. Nothing here needs a text editor.</p>
+
+    <article class="card" id="card-github">
+      <header><span class="step">1</span><h2>GitHub</h2><span class="badge" id="gh-badge">not connected</span></header>
+      <p>Create the App from your browser: GitHub asks you to confirm, sets the four
+         permissions and three events itself, and hands the credentials back here.</p>
+      <div class="row">
+        <input id="gh-app-name" placeholder="App name (must be unique on GitHub)" value="issue-auto-solve">
+        <input id="gh-org" placeholder="Organisation (optional)">
+        <button class="button primary" id="gh-create">Create the GitHub App</button>
+      </div>
+      <details>
+        <summary>Or paste a personal token instead</summary>
+        <p class="muted">Quicker, but the agent then writes under your own login, and telling
+           its questions from your answers becomes guesswork.</p>
+        <div class="row">
+          <input id="gh-token" type="password" placeholder="ghp_… or gho_…">
+          <button class="button" id="gh-token-save">Save token</button>
+        </div>
+      </details>
+    </article>
+
+    <article class="card" id="card-claude">
+      <header><span class="step">2</span><h2>Claude</h2><span class="badge" id="cl-badge">not connected</span></header>
+      <p>Claude Code has no browser flow for third parties, so this one step happens in a
+         terminal. Run <code>claude setup-token</code> and paste what it prints.</p>
+      <div class="row">
+        <input id="cl-token" type="password" placeholder="Token from `claude setup-token`">
+        <button class="button primary" id="cl-save">Save</button>
+      </div>
+    </article>
+
+    <article class="card" id="card-repos">
+      <header><span class="step">3</span><h2>Repositories</h2><span class="badge" id="repo-badge">none</span></header>
+      <div class="row">
+        <input id="repo-add" placeholder="owner/name">
+        <button class="button primary" id="repo-save">Add</button>
+      </div>
+      <ul class="repo-list" id="repo-list"></ul>
+      <p class="muted">Adding a repository is enough to start watching it. To let the agent
+         write its own <code>.issue-auto-solve.yml</code>, use <b>Generate config</b>: it reads the
+         repository, proposes a configuration and opens a pull request with it.</p>
+    </article>
+
+    <button class="button" id="setup-done">Back to the dashboard</button>
+  </div>
+</section>
 
 <main>
   <section class="stats" id="stats"></section>

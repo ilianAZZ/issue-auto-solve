@@ -30,6 +30,18 @@ second tick does *not* open a second pull request.
 **Expect to fix here**: host path mapping for bind mounts (`HOST_WORKSPACE_DIR`), the
 `git clone --reference-if-able` line, and the settle heuristics.
 
+## Step 1b — onboarding from the dashboard ✅
+
+- GitHub App created through the manifest flow, credentials stored encrypted in SQLite
+  behind a key generated on first boot; Claude token pasted in the UI; repositories added
+  and removed at runtime; **Generate config** opens a pull request adding
+  `.issue-auto-solve.yml` written by the agent itself.
+- **Verified**: boots with no credentials at all and says so, rejects a bad token, accepts
+  a real one, stores nothing in clear text, and starts watching a repository added through
+  the API without a restart.
+- **Not verified**: the manifest round trip against GitHub, and the bootstrap run (it goes
+  through the container runner, so step 1 covers it).
+
 ## Step 2 — GitHub App
 
 Until this is done the agent writes under a human login and answer detection is

@@ -49,6 +49,17 @@ export const globalConfig = z.object({
   poll_interval_seconds: z.number().int().positive().default(120),
   max_concurrent_runs: z.number().int().positive().default(2),
   dispatch_enabled: z.boolean().default(true),
+  bootstrap: z
+    .object({
+      image: z.string().default('node:24-slim'),
+      setup: z
+        .array(z.string())
+        .default([
+          'apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates',
+          'npm install -g @anthropic-ai/claude-code',
+        ]),
+    })
+    .default({}),
   defaults: deepPartial.default({}),
   repositories: z
     .array(

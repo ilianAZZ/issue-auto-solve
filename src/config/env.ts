@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { z } from 'zod';
 
@@ -10,7 +10,7 @@ const schema = z
     GITHUB_APP_PRIVATE_KEY: z.string().optional(),
     GITHUB_WEBHOOK_SECRET: z.string().optional(),
     GITHUB_TOKEN: z.string().optional(),
-    CLAUDE_CODE_OAUTH_TOKEN: z.string().min(1, 'CLAUDE_CODE_OAUTH_TOKEN is required'),
+    CLAUDE_CODE_OAUTH_TOKEN: z.string().optional(),
     PORT: z.coerce.number().int().positive().default(8420),
     PUBLIC_URL: z.string().default('http://localhost:8420'),
     CONFIG_FILE: z.string().default('./config/issue-auto-solve.yml'),
@@ -21,14 +21,7 @@ const schema = z
     HOST_WORKSPACE_DIR: z.string().optional(),
     DISCORD_WEBHOOK_URL: z.string().optional(),
   })
-  .superRefine((env, ctx) => {
-    if (env.GITHUB_AUTH_MODE === 'token' && !env.GITHUB_TOKEN) {
-      ctx.addIssue({ code: 'custom', message: 'GITHUB_TOKEN is required when GITHUB_AUTH_MODE=token' });
-    }
-    if (env.GITHUB_AUTH_MODE === 'app' && !env.GITHUB_APP_ID) {
-      ctx.addIssue({ code: 'custom', message: 'GITHUB_APP_ID is required when GITHUB_AUTH_MODE=app' });
-    }
-  });
+  .transform((env) => env);
 
 export type Env = z.infer<typeof schema> & { githubAppPrivateKey?: string };
 
@@ -39,13 +32,8 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
     throw new Error(`invalid environment:\n${details.join('\n')}`);
   }
   const env = parsed.data as Env;
-  if (env.GITHUB_AUTH_MODE === 'app') {
-    env.githubAppPrivateKey =
-      env.GITHUB_APP_PRIVATE_KEY ??
-      (env.GITHUB_APP_PRIVATE_KEY_FILE ? readFileSync(resolve(env.GITHUB_APP_PRIVATE_KEY_FILE), 'utf8') : undefined);
-    if (!env.githubAppPrivateKey) {
-      throw new Error('GITHUB_APP_PRIVATE_KEY or GITHUB_APP_PRIVATE_KEY_FILE is required when GITHUB_AUTH_MODE=app');
-    }
-  }
+  const keyFile = env.GITHUB_APP_PRIVATE_KEY_FILE;
+  env.githubAppPrivateKey =
+    env.GITHUB_APP_PRIVATE_KEY ?? (keyFile && existsSync(resolve(keyFile)) ? readFileSync(resolve(keyFile), 'utf8') : undefined);
   return env;
 }
