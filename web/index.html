@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>agentloop</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🔁</text></svg>">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="bar">
+  <div class="brand">
+    <span class="mark">🔁</span>
+    <span>agentloop</span>
+  </div>
+  <div class="pulse" id="pulse">
+    <span class="dot" id="status-dot"></span>
+    <span id="status-text">connecting</span>
+    <span class="sep">·</span>
+    <span id="capacity">–</span>
+    <span class="sep">·</span>
+    <span id="tick">–</span>
+  </div>
+</header>
+
+<main>
+  <section class="stats" id="stats"></section>
+
+  <section class="controls">
+    <div class="chips" id="state-filters"></div>
+    <div class="right">
+      <select id="repo-filter"><option value="">All repositories</option></select>
+      <input id="search" type="search" placeholder="Filter by number or title…" spellcheck="false">
+    </div>
+  </section>
+
+  <section class="panel">
+    <table class="tasks">
+      <thead>
+        <tr><th class="w-state">State</th><th class="w-issue">Issue</th><th>Title</th><th class="w-meta">Repository</th><th class="w-meta">For</th></tr>
+      </thead>
+      <tbody id="task-rows"></tbody>
+    </table>
+    <p class="empty" id="empty" hidden>Nothing here yet. agentloop picks up issues on its next tick.</p>
+  </section>
+</main>
+
+<aside class="drawer" id="drawer" hidden>
+  <div class="drawer-head">
+    <div>
+      <div class="drawer-title" id="d-title">–</div>
+      <div class="drawer-sub" id="d-sub">–</div>
+    </div>
+    <button class="ghost" id="d-close" aria-label="Close">✕</button>
+  </div>
+  <div class="drawer-actions">
+    <a class="button" id="d-issue" target="_blank" rel="noreferrer">Open issue</a>
+    <a class="button" id="d-pr" target="_blank" rel="noreferrer" hidden>Pull request</a>
+    <button class="button" id="d-requeue">Requeue</button>
+    <button class="button" id="d-skip">Skip</button>
+  </div>
+  <div class="drawer-body">
+    <h3>Timeline</h3>
+    <ol class="timeline" id="d-timeline"></ol>
+    <h3>Last run</h3>
+    <pre class="log" id="d-log">No run yet.</pre>
+  </div>
+</aside>
+<div class="scrim" id="scrim" hidden></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

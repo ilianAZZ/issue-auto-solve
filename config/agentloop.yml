@@ -1,0 +1,38 @@
+# Global configuration. Everything here is a default: any repository can
+# override it in its own .agentloop.yml.
+
+poll_interval_seconds: 120
+max_concurrent_runs: 2
+
+# false: agentloop watches, syncs and shows everything but never starts a run.
+# The safe way to plug a new repository in and see what it would pick up.
+dispatch_enabled: true
+
+defaults:
+  base_branch: main
+  branch_pattern: "agent/issue-{{number}}"
+  config_path: .agentloop.yml
+  labels:
+    exclude: []
+    waiting: needs-human-input
+  selection:
+    order: oldest        # oldest | newest | priority_labels
+    priority_labels: []
+  limits:
+    max_concurrent_runs: 1
+    timeout_minutes: 45
+    max_runs_per_task: 2
+  runtime:
+    image: node:24-slim
+    docker_socket: false
+    env: []
+    setup: []
+  preflight: []
+  checks: []
+  prompt:
+    file: null           # path inside the target repo, e.g. .agentloop/prompt.md
+    variables: {}
+
+repositories:
+  - repo: owner/name
+    enabled: false

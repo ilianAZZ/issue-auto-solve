@@ -1,0 +1,112 @@
+import { spawn } from 'node:child_process';
+import { createWriteStream, mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import type { RepoSettings } from '../config/schema.js';
+import type { Logger } from '../util/log.js';
+
+export interface RunRequest {
+  runId: number;
+  image: string;
+  settings: RepoSettings;
+  workspacePath: string;
+  hostWorkspacePath: string;
+  controlPath: string;
+  hostControlPath: string;
+  logPath: string;
+  prompt: string;
+  env: Record<string, string>;
+  timeoutMinutes: number;
+}
+
+export interface RunResult {
+  status: 'succeeded' | 'failed' | 'timeout';
+  exitCode: number | null;
+}
+
+const shellQuote = (value: string) => `'${value.replace(/'/g, `'\\''`)}'`;
+
+function entrypoint(settings: RepoSettings): string {
+  const lines = ['#!/bin/sh', 'set -eu', 'cd /workspace', ''];
+  for (const command of settings.runtime.setup) lines.push(command);
+  if (settings.preflight.length) {
+    lines.push('', '{');
+    for (const command of settings.preflight) lines.push(`  echo "+ ${command}"`, `  ${command}`);
+    lines.push('} 2>&1 | tee /control/preflight.log', '');
+  }
+  lines.push(
+    'claude -p "$(cat /control/prompt.md)" \\',
+    '  --dangerously-skip-permissions \\',
+    '  --output-format stream-json --verbose',
+  );
+  return `${lines.join('\n')}\n`;
+}
+
+export function writeControlFiles(request: RunRequest): void {
+  mkdirSync(request.controlPath, { recursive: true });
+  writeFileSync(join(request.controlPath, 'prompt.md'), request.prompt);
+  writeFileSync(join(request.controlPath, 'run.sh'), entrypoint(request.settings), { mode: 0o755 });
+}
+
+export function dockerArgs(request: RunRequest): string[] {
+  const args = [
+    'run',
+    '--rm',
+    '--name',
+    `agentloop-run-${request.runId}`,
+    '-v',
+    `${request.hostWorkspacePath}:/workspace`,
+    '-v',
+    `${request.hostControlPath}:/control`,
+    '-w',
+    '/workspace',
+  ];
+  if (request.settings.runtime.docker_socket) {
+    args.push('-v', '/var/run/docker.sock:/var/run/docker.sock');
+    args.push('--add-host', 'host.docker.internal:host-gateway');
+    args.push('-e', 'TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal');
+  }
+  for (const [key, value] of Object.entries(request.env)) args.push('-e', `${key}=${value}`);
+  args.push(request.image, 'sh', '/control/run.sh');
+  return args;
+}
+
+export function shellPreview(request: RunRequest): string {
+  return ['docker', ...dockerArgs(request).map((a) => (/[^\w@%+=:,./-]/.test(a) ? shellQuote(a) : a))].join(' ');
+}
+
+export async function runContainer(request: RunRequest, log: Logger): Promise<RunResult> {
+  writeControlFiles(request);
+  const output = createWriteStream(request.logPath, { flags: 'a' });
+  output.write(`$ ${shellPreview({ ...request, env: maskEnv(request.env) })}\n\n`);
+
+  const child = spawn('docker', dockerArgs(request), { stdio: ['ignore', 'pipe', 'pipe'] });
+  child.stdout.pipe(output, { end: false });
+  child.stderr.pipe(output, { end: false });
+
+  let timedOut = false;
+  const timer = setTimeout(
+    () => {
+      timedOut = true;
+      log.warn(`run ${request.runId} exceeded ${request.timeoutMinutes}m, stopping container`);
+      spawn('docker', ['kill', `agentloop-run-${request.runId}`], { stdio: 'ignore' });
+    },
+    request.timeoutMinutes * 60_000,
+  );
+
+  const exitCode = await new Promise<number | null>((resolve) => {
+    child.on('error', (error) => {
+      output.write(`\nagentloop: failed to start docker: ${error.message}\n`);
+      resolve(null);
+    });
+    child.on('close', (code) => resolve(code));
+  });
+
+  clearTimeout(timer);
+  output.end();
+  if (timedOut) return { status: 'timeout', exitCode };
+  return { status: exitCode === 0 ? 'succeeded' : 'failed', exitCode };
+}
+
+function maskEnv(env: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(Object.keys(env).map((key) => [key, '***']));
+}

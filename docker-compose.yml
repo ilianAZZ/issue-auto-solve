@@ -1,0 +1,24 @@
+services:
+  agentloop:
+    build: .
+    container_name: agentloop
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      CONFIG_FILE: /app/config/agentloop.yml
+      STATE_DIR: /app/state
+      WORKSPACE_DIR: /app/workspaces
+      LOG_DIR: /app/logs
+      # The Docker daemon resolves bind mounts on the host, so agent containers
+      # must be given host paths, not the paths seen from inside this container.
+      HOST_STATE_DIR: ${PWD}/state
+      HOST_WORKSPACE_DIR: ${PWD}/workspaces
+    ports:
+      - "${PORT:-8420}:8420"
+    volumes:
+      - ./config:/app/config:ro
+      - ./secrets:/secrets:ro
+      - ./state:/app/state
+      - ./workspaces:/app/workspaces
+      - ./logs:/app/logs
+      - /var/run/docker.sock:/var/run/docker.sock

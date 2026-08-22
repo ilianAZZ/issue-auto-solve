@@ -1,0 +1,44 @@
+# Drop this file at the root of a repository you want agentloop to work on.
+# Every key is optional: anything you leave out falls back to the global
+# defaults in config/agentloop.yml.
+version: 1
+
+base_branch: dev
+branch_pattern: "agent/issue-{{number}}"
+
+labels:
+  exclude: [legal, security, complex, needs-design]
+  waiting: needs-human-input
+
+selection:
+  order: priority_labels
+  priority_labels: [P0, P1, P2]
+
+runtime:
+  image: ghcr.io/acme/breem-agent:latest
+  docker_socket: true          # the agent needs a Docker daemon (testcontainers)
+  env: [ENVIRONMENT_PASSWORD]  # forwarded from the orchestrator environment
+  setup:
+    - corepack enable
+
+preflight:
+  - pnpm install --frozen-lockfile
+  - pnpm build
+
+checks:
+  - name: lint
+    run: pnpm lint:check
+  - name: types
+    run: pnpm build
+  - name: api
+    run: pnpm --filter @acme/api test
+    when: "apps/api/**"
+
+limits:
+  max_concurrent_runs: 1
+  timeout_minutes: 60
+
+prompt:
+  file: .agentloop/prompt.md   # replaces the built-in prompt entirely
+  variables:
+    house_rules: "Read CLAUDE.md at the repo root before touching anything."
