@@ -49,6 +49,8 @@ export const globalConfig = z.object({
   poll_interval_seconds: z.number().int().positive().default(120),
   max_concurrent_runs: z.number().int().positive().default(2),
   dispatch_enabled: z.boolean().default(true),
+  // Environment variables a repository may ask for. Empty means none.
+  allow_env: z.array(z.string()).default([]),
   bootstrap: z
     .object({
       image: z.string().default('node:24-slim'),

@@ -94,8 +94,8 @@ Ordered by what unblocks the most.
 10. Pin the Docker CLI version and check the image builds on both architectures.
 
 **Dashboard**
-11. **Authentication.** There is none today — anyone reaching the port can requeue or
-    skip. Blocking before this is exposed anywhere.
+11. ~~Authentication~~ — done: token generated on first boot, constant-time check.
+    Still missing: TLS, and more than one operator.
 12. Live log streaming (SSE) instead of re-fetching the whole file every four seconds.
 13. Per-repository page: queue, history, error from the last sync.
 14. Show the rendered prompt of a run — indispensable when the agent misbehaves and the
@@ -131,7 +131,7 @@ comment, and a reply on one of them produces a run.
 
 | Gap | Consequence |
 | --- | --- |
-| Dashboard has no authentication | never expose the port directly |
+| Dashboard has no TLS | put it behind a reverse proxy before exposing it |
 | Runner never executed end to end | step 1 exists for this |
 | Installation tokens expire after an hour | a run longer than that loses push rights |
 | `workspaces/` and `logs/` grow forever | disk fills up silently |

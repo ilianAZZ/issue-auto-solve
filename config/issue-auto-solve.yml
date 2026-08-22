@@ -8,6 +8,11 @@ max_concurrent_runs: 2
 # The safe way to plug a new repository in and see what it would pick up.
 dispatch_enabled: true
 
+# Environment variables a repository may ask for through runtime.env. Anything not listed
+# here is refused, so a .issue-auto-solve.yml cannot help itself to the orchestrator's
+# secrets. Empty means none.
+allow_env: []
+
 defaults:
   base_branch: main
   branch_pattern: "agent/issue-{{number}}"
@@ -28,6 +33,8 @@ defaults:
     max_runs_per_task: 2
   runtime:
     image: node:24-slim
+    # Mounting the Docker socket is root on the host. Operator-only: a repository cannot
+    # turn this on from its own .issue-auto-solve.yml.
     docker_socket: false
     env: []
     setup: []

@@ -153,6 +153,13 @@ any run. Requeue or skip an issue from the drawer.
 - [docs/GITHUB-APP.md](docs/GITHUB-APP.md) — create the bot identity
 - [ROADMAP.md](ROADMAP.md) — what works, what is next, what is untested
 
+## Security
+
+The dashboard is authenticated with a token generated on first boot and printed in the
+log; `.issue-auto-solve.yml` cannot grant itself the Docker socket or the orchestrator's
+environment variables; run logs are scrubbed of both tokens as they are written. The
+threat model, and what is deliberately *not* protected, is in [SECURITY.md](SECURITY.md).
+
 ## Roadmap
 
 What works, what is next and what is still untested: [ROADMAP.md](ROADMAP.md).

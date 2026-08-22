@@ -7,6 +7,7 @@ import { Orchestrator } from './core/orchestrator.js';
 import { Credentials } from './core/credentials.js';
 import { SecretStore } from './db/secrets.js';
 import { createServer } from './server/app.js';
+import { resolveDashboardToken } from './server/auth.js';
 import { logger } from './util/log.js';
 
 const log = logger('issue-auto-solve');
@@ -24,9 +25,10 @@ async function main() {
   const orchestrator = new Orchestrator(env, config, store, credentials);
   orchestrator.seedRepositories();
 
-  const server = await createServer(env, store, orchestrator, credentials);
+  const dashboardToken = resolveDashboardToken(env.DASHBOARD_TOKEN, join(resolve(env.STATE_DIR), 'dashboard.token'));
+  const server = await createServer(env, store, orchestrator, credentials, dashboardToken);
   await server.listen({ port: env.PORT, host: '0.0.0.0' });
-  log.info(`dashboard on ${env.PUBLIC_URL}`);
+  log.info(`dashboard on ${env.PUBLIC_URL}/login?token=${dashboardToken}`);
 
   await orchestrator.start();
   log.info(

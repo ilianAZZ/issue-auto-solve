@@ -3,6 +3,7 @@ import { createWriteStream, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { RepoSettings } from '../config/schema.js';
 import type { Logger } from '../util/log.js';
+import { redactStream } from '../util/redact.js';
 
 export interface RunRequest {
   runId: number;
@@ -16,6 +17,7 @@ export interface RunRequest {
   prompt: string;
   env: Record<string, string>;
   timeoutMinutes: number;
+  secrets: string[];
 }
 
 export interface RunResult {
@@ -80,8 +82,10 @@ export async function runContainer(request: RunRequest, log: Logger): Promise<Ru
   output.write(`$ ${shellPreview({ ...request, env: maskEnv(request.env) })}\n\n`);
 
   const child = spawn('docker', dockerArgs(request), { stdio: ['ignore', 'pipe', 'pipe'] });
-  child.stdout.pipe(output, { end: false });
-  child.stderr.pipe(output, { end: false });
+  const scrubbed = redactStream(request.secrets);
+  scrubbed.pipe(output, { end: false });
+  child.stdout.pipe(scrubbed, { end: false });
+  child.stderr.pipe(scrubbed, { end: false });
 
   let timedOut = false;
   const timer = setTimeout(
@@ -102,6 +106,7 @@ export async function runContainer(request: RunRequest, log: Logger): Promise<Ru
   });
 
   clearTimeout(timer);
+  scrubbed.end();
   output.end();
   if (timedOut) return { status: 'timeout', exitCode };
   return { status: exitCode === 0 ? 'succeeded' : 'failed', exitCode };

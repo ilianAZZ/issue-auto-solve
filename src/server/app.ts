@@ -10,6 +10,7 @@ import { TASK_STATES } from '../core/states.js';
 import { logger } from '../util/log.js';
 import { interpret, verifySignature } from './webhook.js';
 import { registerSetup } from './setup.js';
+import { registerAuth } from './auth.js';
 import type { Credentials } from '../core/credentials.js';
 
 const log = logger('server');
@@ -25,7 +26,13 @@ const decorate = (store: Store) => (task: TaskRow) => {
   };
 };
 
-export async function createServer(env: Env, store: Store, orchestrator: Orchestrator, credentials: Credentials) {
+export async function createServer(
+  env: Env,
+  store: Store,
+  orchestrator: Orchestrator,
+  credentials: Credentials,
+  dashboardToken: string,
+) {
   const app = Fastify({ logger: false, bodyLimit: 8 * 1024 * 1024 });
   const view = decorate(store);
 
@@ -40,6 +47,7 @@ export async function createServer(env: Env, store: Store, orchestrator: Orchest
     }
   });
 
+  registerAuth(app, dashboardToken, env.PUBLIC_URL.startsWith('https://'));
   await app.register(fastifyStatic, { root: webRoot, prefix: '/' });
   registerSetup(app, env, store, credentials, orchestrator);
 

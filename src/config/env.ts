@@ -20,6 +20,7 @@ const schema = z
     HOST_STATE_DIR: z.string().optional(),
     HOST_WORKSPACE_DIR: z.string().optional(),
     DISCORD_WEBHOOK_URL: z.string().optional(),
+    DASHBOARD_TOKEN: z.string().optional(),
   })
   .transform((env) => env);
 

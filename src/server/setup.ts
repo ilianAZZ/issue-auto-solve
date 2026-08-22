@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { randomBytes } from 'node:crypto';
 import { Octokit } from '@octokit/rest';
 import type { Env } from '../config/index.js';
 import type { Credentials } from '../core/credentials.js';
@@ -7,6 +8,7 @@ import type { Store } from '../db/store.js';
 import { logger } from '../util/log.js';
 
 const log = logger('setup');
+const pending = new Set<string>();
 
 const manifestFor = (publicUrl: string, name: string) => ({
   name,
@@ -41,6 +43,8 @@ export function registerSetup(
   // with the right permissions and events, then hands the credentials back once.
   app.get<{ Querystring: { org?: string; name?: string } }>('/setup/github/new', async (request, reply) => {
     const name = request.query.name?.trim() || 'issue-auto-solve';
+    const nonce = randomBytes(16).toString('hex');
+    pending.add(nonce);
     const action = request.query.org
       ? `https://github.com/organizations/${request.query.org}/settings/apps/new`
       : 'https://github.com/settings/apps/new';
@@ -49,14 +53,17 @@ export function registerSetup(
     return `<!doctype html><meta charset="utf-8"><title>Creating the GitHub App…</title>
 <body style="font:14px system-ui;padding:40px">
 <p>Sending you to GitHub to create the <b>${name}</b> App…</p>
-<form id="f" method="post" action="${action}"><input type="hidden" name="manifest" value="${manifest}"></form>
+<form id="f" method="post" action="${action}?state=${nonce}"><input type="hidden" name="manifest" value="${manifest}"></form>
 <noscript><button form="f">Continue to GitHub</button></noscript>
 <script>document.getElementById('f').submit()</script></body>`;
   });
 
-  app.get<{ Querystring: { code?: string } }>('/setup/github/callback', async (request, reply) => {
+  app.get<{ Querystring: { code?: string; state?: string } }>('/setup/github/callback', async (request, reply) => {
     const code = request.query.code;
     if (!code) return reply.code(400).send('missing code');
+    if (!request.query.state || !pending.delete(request.query.state)) {
+      return reply.code(400).send('unknown or already used setup request');
+    }
     try {
       const { data } = await new Octokit().request('POST /app-manifests/{code}/conversions', { code });
       credentials.saveGitHubApp({

@@ -30,13 +30,22 @@ export function loadGlobalConfig(file: string): GlobalConfig {
   return parsed.data;
 }
 
+/**
+ * `.issue-auto-solve.yml` lives in the repository being worked on, so anyone who can land a
+ * commit there controls it — including the agent itself. Two knobs are therefore decided by
+ * the operator only, never by that file: the Docker socket, which is root on the host, and
+ * which environment variables may be forwarded into the container.
+ */
 export function resolveRepoSettings(
   config: GlobalConfig,
   entryOverrides: unknown,
   repoFile: string | null,
 ): RepoSettings {
   const inRepo = repoFile ? (parse(repoFile) ?? {}) : {};
-  const merged = merge(builtinDefaults, config.defaults, entryOverrides, inRepo);
+  const operator = merge(builtinDefaults, config.defaults, entryOverrides) as RepoSettings;
+  const merged = merge(builtinDefaults, config.defaults, entryOverrides, inRepo) as RepoSettings;
+  merged.runtime.docker_socket = operator.runtime.docker_socket;
+  merged.runtime.env = (merged.runtime.env ?? []).filter((name) => config.allow_env.includes(name));
   const parsed = repoSettings.safeParse(merged);
   if (!parsed.success) {
     const details = parsed.error.issues.map((i) => `  - ${i.path.join('.')}: ${i.message}`);

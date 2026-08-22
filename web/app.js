@@ -14,7 +14,26 @@ const filters = { states: new Set(['running', 'waiting_human', 'discovered', 'fa
 let openTaskId = null;
 
 const $ = (id) => document.getElementById(id);
-const api = (path) => fetch(path).then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.statusText))));
+const api = (path) =>
+  fetch(path).then((r) => {
+    if (r.status === 401) return askForToken();
+    return r.ok ? r.json() : Promise.reject(new Error(r.statusText));
+  });
+
+function askForToken() {
+  document.body.innerHTML = `<div class="setup"><div class="setup-inner">
+    <h1>This dashboard is locked</h1>
+    <p class="lede">It can add repositories, replace credentials and read run logs, so it asks
+      for the token printed in the server log at startup.</p>
+    <div class="card"><div class="row">
+      <input id="tok" type="password" placeholder="Dashboard token" autofocus>
+      <button class="button primary" id="tok-go">Unlock</button>
+    </div></div></div></div>`;
+  const go = () => (window.location.href = `/login?token=${encodeURIComponent(document.getElementById('tok').value.trim())}`);
+  document.getElementById('tok-go').addEventListener('click', go);
+  document.getElementById('tok').addEventListener('keydown', (e) => e.key === 'Enter' && go());
+  return new Promise(() => {});
+}
 
 function ago(iso) {
   if (!iso) return '–';
