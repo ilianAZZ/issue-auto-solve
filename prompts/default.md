@@ -58,14 +58,14 @@ gh issue comment {{issue_number}} --body "<your question, precise and self-conta
 
 Ask one question, self-contained, answerable without opening your branch. Then end the
 invocation. Do not start another issue, do not guess, do not open a partial pull
-request. agentloop marks the issue as waiting and brings it back to you the moment
+request. issue-auto-solve marks the issue as waiting and brings it back to you the moment
 somebody replies.
 
 ## Never
 
 - Merge anything, push to `{{base_branch}}`, force-push, or delete a remote branch.
 - Open a second pull request for this issue.
-- Rename the branch: `{{branch}}` is how agentloop tracks this work.
+- Rename the branch: `{{branch}}` is how issue-auto-solve tracks this work.
 - Work on any issue other than #{{issue_number}}.
 
 ## Final report

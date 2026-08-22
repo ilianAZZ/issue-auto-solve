@@ -1,5 +1,5 @@
 {
-  "name": "agentloop",
+  "name": "issue-auto-solve",
   "version": "0.1.0",
   "description": "Self-hosted orchestrator that lets Claude Code work a GitHub backlog on its own, across repositories.",
   "license": "MIT",

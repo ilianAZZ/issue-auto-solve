@@ -30,7 +30,7 @@ export class GitHub {
     if (this.identity) return this.identity;
     if (this.env.GITHUB_AUTH_MODE === 'app') {
       const { data } = await this.app.apps.getAuthenticated();
-      this.identity = `${data?.slug ?? 'agentloop'}[bot]`;
+      this.identity = `${data?.slug ?? 'issue-auto-solve'}[bot]`;
     } else {
       const { data } = await this.app.users.getAuthenticated();
       this.identity = data.login;

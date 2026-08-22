@@ -52,7 +52,7 @@ export function dockerArgs(request: RunRequest): string[] {
     'run',
     '--rm',
     '--name',
-    `agentloop-run-${request.runId}`,
+    `issue-auto-solve-run-${request.runId}`,
     '-v',
     `${request.hostWorkspacePath}:/workspace`,
     '-v',
@@ -88,14 +88,14 @@ export async function runContainer(request: RunRequest, log: Logger): Promise<Ru
     () => {
       timedOut = true;
       log.warn(`run ${request.runId} exceeded ${request.timeoutMinutes}m, stopping container`);
-      spawn('docker', ['kill', `agentloop-run-${request.runId}`], { stdio: 'ignore' });
+      spawn('docker', ['kill', `issue-auto-solve-run-${request.runId}`], { stdio: 'ignore' });
     },
     request.timeoutMinutes * 60_000,
   );
 
   const exitCode = await new Promise<number | null>((resolve) => {
     child.on('error', (error) => {
-      output.write(`\nagentloop: failed to start docker: ${error.message}\n`);
+      output.write(`\nissue-auto-solve: failed to start docker: ${error.message}\n`);
       resolve(null);
     });
     child.on('close', (code) => resolve(code));

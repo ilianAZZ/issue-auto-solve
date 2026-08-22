@@ -29,7 +29,7 @@ export class Orchestrator {
   private readonly inflight = new Set<number>();
   private timer: NodeJS.Timeout | null = null;
   private ticking = false;
-  private botLogin = 'agentloop[bot]';
+  private botLogin = 'issue-auto-solve[bot]';
 
   constructor(
     private readonly env: Env,
@@ -104,7 +104,7 @@ export class Orchestrator {
       try {
         const access = await this.github.access(entry.repo);
         if (access.installationId) this.store.setInstallation(row.id, access.installationId);
-        const configPath = (entry.settings as { config_path?: string })?.config_path ?? this.config.defaults.config_path ?? '.agentloop.yml';
+        const configPath = (entry.settings as { config_path?: string })?.config_path ?? this.config.defaults.config_path ?? '.issue-auto-solve.yml';
         const file = await fetchRepoFile(access, configPath);
         const settings = resolveRepoSettings(this.config, entry.settings, file);
         this.contexts.set(entry.repo, { id: row.id, fullName: entry.repo, settings });
@@ -368,7 +368,7 @@ export class Orchestrator {
     return env;
   }
 
-  /** Volumes are mounted by the host daemon, so paths must be host paths when agentloop itself runs in a container. */
+  /** Volumes are mounted by the host daemon, so paths must be host paths when issue-auto-solve itself runs in a container. */
   private hostPath(local: string, localRoot: string, hostRoot?: string): string {
     return hostRoot ? join(hostRoot, relative(resolve(localRoot), local)) : local;
   }

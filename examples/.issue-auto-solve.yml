@@ -1,6 +1,6 @@
-# Drop this file at the root of a repository you want agentloop to work on.
+# Drop this file at the root of a repository you want issue-auto-solve to work on.
 # Every key is optional: anything you leave out falls back to the global
-# defaults in config/agentloop.yml.
+# defaults in config/issue-auto-solve.yml.
 version: 1
 
 base_branch: dev
@@ -39,6 +39,6 @@ limits:
   timeout_minutes: 60
 
 prompt:
-  file: .agentloop/prompt.md   # replaces the built-in prompt entirely
+  file: .issue-auto-solve/prompt.md   # replaces the built-in prompt entirely
   variables:
     house_rules: "Read CLAUDE.md at the repo root before touching anything."

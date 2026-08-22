@@ -13,7 +13,7 @@ const schema = z
     CLAUDE_CODE_OAUTH_TOKEN: z.string().min(1, 'CLAUDE_CODE_OAUTH_TOKEN is required'),
     PORT: z.coerce.number().int().positive().default(8420),
     PUBLIC_URL: z.string().default('http://localhost:8420'),
-    CONFIG_FILE: z.string().default('./config/agentloop.yml'),
+    CONFIG_FILE: z.string().default('./config/issue-auto-solve.yml'),
     STATE_DIR: z.string().default('./state'),
     WORKSPACE_DIR: z.string().default('./workspaces'),
     LOG_DIR: z.string().default('./logs'),

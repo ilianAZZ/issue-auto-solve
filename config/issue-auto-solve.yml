@@ -1,17 +1,17 @@
 # Global configuration. Everything here is a default: any repository can
-# override it in its own .agentloop.yml.
+# override it in its own .issue-auto-solve.yml.
 
 poll_interval_seconds: 120
 max_concurrent_runs: 2
 
-# false: agentloop watches, syncs and shows everything but never starts a run.
+# false: issue-auto-solve watches, syncs and shows everything but never starts a run.
 # The safe way to plug a new repository in and see what it would pick up.
 dispatch_enabled: true
 
 defaults:
   base_branch: main
   branch_pattern: "agent/issue-{{number}}"
-  config_path: .agentloop.yml
+  config_path: .issue-auto-solve.yml
   labels:
     exclude: []
     waiting: needs-human-input
@@ -30,7 +30,7 @@ defaults:
   preflight: []
   checks: []
   prompt:
-    file: null           # path inside the target repo, e.g. .agentloop/prompt.md
+    file: null           # path inside the target repo, e.g. .issue-auto-solve/prompt.md
     variables: {}
 
 repositories:

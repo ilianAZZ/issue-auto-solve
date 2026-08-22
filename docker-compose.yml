@@ -1,11 +1,11 @@
 services:
-  agentloop:
+  issue-auto-solve:
     build: .
-    container_name: agentloop
+    container_name: issue-auto-solve
     restart: unless-stopped
     env_file: .env
     environment:
-      CONFIG_FILE: /app/config/agentloop.yml
+      CONFIG_FILE: /app/config/issue-auto-solve.yml
       STATE_DIR: /app/state
       WORKSPACE_DIR: /app/workspaces
       LOG_DIR: /app/logs

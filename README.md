@@ -1,4 +1,4 @@
-# agentloop
+# issue-auto-solve
 
 Self-hosted orchestrator that lets Claude Code work a GitHub backlog on its own, across
 repositories, with a dashboard to watch it.
@@ -10,7 +10,7 @@ back up the moment you reply.
 
 ```
 ┌──────────────┐   poll / webhook   ┌──────────────┐   docker run   ┌─────────────┐
-│  GitHub      │ ─────────────────► │  agentloop   │ ─────────────► │  claude -p  │
+│  GitHub      │ ─────────────────► │  issue-auto-solve   │ ─────────────► │  claude -p  │
 │  issues, PRs │ ◄───────────────── │  state + UI  │ ◄───────────── │  /workspace │
 └──────────────┘   comment, PR      └──────────────┘   exit code    └─────────────┘
 ```
@@ -18,7 +18,7 @@ back up the moment you reply.
 ## Why
 
 Backlog crawlers written as a shell loop all break the same way: the agent asks a
-question, somebody answers, and nothing ever happens again. agentloop keeps the state
+question, somebody answers, and nothing ever happens again. issue-auto-solve keeps the state
 itself instead of asking the agent to re-derive it from the issue on every run.
 
 | State | Meaning |
@@ -26,7 +26,7 @@ itself instead of asking the agent to re-derive it from the issue on every run.
 | `discovered` | eligible, waiting for a free slot |
 | `claimed` / `running` | a container is working on it |
 | `waiting_human` | the agent asked a question, we know which comment it was |
-| `pr_open` | a pull request exists, agentloop is done |
+| `pr_open` | a pull request exists, issue-auto-solve is done |
 | `skipped` | excluded by label, or already has a branch or a pull request |
 | `failed` | the run ended without a pull request, with a reason |
 
@@ -37,14 +37,14 @@ token the agent writes under your own login and no rule can tell the two apart.
 ## Quick start
 
 ```bash
-git clone https://github.com/<you>/agentloop && cd agentloop
+git clone https://github.com/<you>/issue-auto-solve && cd issue-auto-solve
 cp .env.example .env            # credentials
-$EDITOR config/agentloop.yml    # repositories and defaults
+$EDITOR config/issue-auto-solve.yml    # repositories and defaults
 docker compose up -d --build
 open http://localhost:8420
 ```
 
-Start with `dispatch_enabled: false`: agentloop syncs, classifies and shows the whole
+Start with `dispatch_enabled: false`: issue-auto-solve syncs, classifies and shows the whole
 backlog without ever starting a run. Flip it once the dashboard shows what you expect.
 
 ### Credentials
@@ -61,8 +61,8 @@ are an accelerator, never a requirement: polling alone is enough.
 
 ## Configuring a repository
 
-Global defaults live in `config/agentloop.yml`. Anything a repository needs to change
-goes in a `.agentloop.yml` **at the root of that repository**, so a new project is one
+Global defaults live in `config/issue-auto-solve.yml`. Anything a repository needs to change
+goes in a `.issue-auto-solve.yml` **at the root of that repository**, so a new project is one
 file away and nothing is duplicated here:
 
 ```yaml
@@ -80,10 +80,10 @@ checks:
   - name: types
     run: pnpm build
 prompt:
-  file: .agentloop/prompt.md
+  file: .issue-auto-solve/prompt.md
 ```
 
-See [examples/.agentloop.yml](examples/.agentloop.yml) for every key.
+See [examples/.issue-auto-solve.yml](examples/.issue-auto-solve.yml) for every key.
 
 **The prompt is configuration too.** [prompts/default.md](prompts/default.md) is a
 template rendered with `{{repo}}`, `{{issue_number}}`, `{{branch}}`, `{{base_branch}}`,
@@ -105,7 +105,7 @@ entirely per repository, and `prompt.variables` to inject your own.
    `/control/preflight.log`, readable by the agent.
 3. `claude -p` runs against the rendered prompt with the repository checked out at
    `/workspace` and a scoped GitHub token in `GH_TOKEN`.
-4. agentloop settles the outcome from GitHub, not from what the agent claims: a pull
+4. issue-auto-solve settles the outcome from GitHub, not from what the agent claims: a pull
    request on the branch means done, a fresh comment from the agent means waiting,
    anything else is a failure with a reason.
 
@@ -127,7 +127,7 @@ npm run typecheck
 ```
 
 `state/` holds the SQLite database, `workspaces/` the clones, `logs/` one file per run.
-All three are disposable: delete them and agentloop rebuilds its view from GitHub.
+All three are disposable: delete them and issue-auto-solve rebuilds its view from GitHub.
 
 ## License
 

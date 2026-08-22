@@ -7,7 +7,7 @@ import { Orchestrator } from './core/orchestrator.js';
 import { createServer } from './server/app.js';
 import { logger } from './util/log.js';
 
-const log = logger('agentloop');
+const log = logger('issue-auto-solve');
 
 async function main() {
   const env = loadEnv();
@@ -15,7 +15,7 @@ async function main() {
 
   for (const dir of [env.STATE_DIR, env.WORKSPACE_DIR, env.LOG_DIR]) mkdirSync(resolve(dir), { recursive: true });
 
-  const db = openDatabase(join(resolve(env.STATE_DIR), 'agentloop.db'));
+  const db = openDatabase(join(resolve(env.STATE_DIR), 'issue-auto-solve.db'));
   const store = new Store(db);
   const orchestrator = new Orchestrator(env, config, store);
 
