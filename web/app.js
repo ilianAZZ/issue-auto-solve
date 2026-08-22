@@ -1,9 +1,10 @@
-const STATES = ['running', 'waiting_human', 'discovered', 'pr_open', 'failed', 'skipped'];
+const STATES = ['running', 'waiting_human', 'needs_approval', 'discovered', 'pr_open', 'failed', 'skipped'];
 const LABELS = {
   running: 'Working',
   claimed: 'Claimed',
   waiting_human: 'Waiting on you',
   discovered: 'Queued',
+  needs_approval: 'Needs approval',
   pr_open: 'PR open',
   failed: 'Failed',
   skipped: 'Skipped',
@@ -54,6 +55,7 @@ async function refreshOverview() {
   const cards = [
     { k: 'Working', n: data.counts.running + data.counts.claimed },
     { k: 'Waiting on you', n: data.counts.waiting_human, alert: data.counts.waiting_human > 0 },
+    { k: 'Needs approval', n: data.counts.needs_approval, alert: data.counts.needs_approval > 0 },
     { k: 'Queued', n: data.counts.discovered },
     { k: 'PRs open', n: data.counts.pr_open },
     { k: 'Failed', n: data.counts.failed },

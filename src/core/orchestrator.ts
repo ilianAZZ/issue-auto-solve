@@ -142,7 +142,7 @@ export class Orchestrator {
           const known = this.store.taskByNumber(context.id, issue.number);
           const task = this.store.observeIssue({ repoId: context.id, ...issue });
           if (!known) this.store.event(task.id, null, 'discovered', `#${issue.number} ${issue.title}`);
-          await this.reconcileLabels(context, access, task, issue.labels);
+          await this.reconcileLabels(context, access, task, issue);
         }
         this.store.setRepoSynced(context.id, cursor);
         log.debug(`${context.fullName}: ${issues.length} issue(s) seen since ${repo?.last_sync_at ?? 'the beginning'}`);
@@ -154,14 +154,34 @@ export class Orchestrator {
   }
 
   /**
+   * On a public repository anybody can open an issue, so nothing is worked on until a
+   * maintainer approves it. Applying a label already requires triage permission, which
+   * makes the label itself the gate; trusted_associations narrows it further by who opened
+   * the issue.
+   */
+  private approvalGate(context: RepoContext, labels: string[], authorAssociation: string): string | null {
+    const { require_label: required, trusted_associations: trusted } = context.settings.selection;
+    if (required && !labels.includes(required)) return `waiting for a maintainer to add the "${required}" label`;
+    if (trusted.length && !trusted.includes(authorAssociation)) return `opened by ${authorAssociation}, not a trusted author`;
+    return null;
+  }
+
+  /**
    * Labels are the human's remote control: excluding one takes the issue out of the queue,
    * the waiting label parks it. Adopting a repository that was already using the waiting
    * label must not re-run work that is genuinely waiting for an answer.
    */
-  private async reconcileLabels(context: RepoContext, access: RepoAccess, task: TaskRow, labels: string[]): Promise<void> {
+  private async reconcileLabels(
+    context: RepoContext,
+    access: RepoAccess,
+    task: TaskRow,
+    issue: { labels: string[]; authorAssociation: string },
+  ): Promise<void> {
+    const labels = issue.labels;
     const excluded = labels.some((label) => context.settings.labels.exclude.includes(label));
     const waitingLabel = context.settings.labels.waiting;
     const parked = Boolean(waitingLabel) && labels.includes(waitingLabel);
+    const gate = this.approvalGate(context, labels, issue.authorAssociation);
 
     if (task.state === 'discovered' && excluded) {
       const label = labels.find((l) => context.settings.labels.exclude.includes(l));
@@ -170,6 +190,14 @@ export class Orchestrator {
     }
     if (task.state === 'skipped' && !excluded && (task.reason ?? '').startsWith('excluded by label')) {
       this.store.transition(task.id, 'discovered', {}, 'exclusion label removed');
+      return;
+    }
+    if (gate && task.state === 'discovered') {
+      this.store.transition(task.id, 'needs_approval', { reason: gate }, gate);
+      return;
+    }
+    if (!gate && task.state === 'needs_approval') {
+      this.store.transition(task.id, 'discovered', {}, 'approved');
       return;
     }
     if (task.state === 'discovered' && parked && task.run_count === 0) {

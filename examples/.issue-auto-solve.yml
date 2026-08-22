@@ -13,6 +13,8 @@ labels:
 selection:
   order: priority_labels
   priority_labels: [P0, P1, P2]
+  require_label: approved          # only issues a maintainer labelled are eligible
+  trusted_associations: [OWNER, MEMBER, COLLABORATOR]
 
 runtime:
   image: ghcr.io/acme/breem-agent:latest

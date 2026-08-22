@@ -18,6 +18,10 @@ defaults:
   selection:
     order: oldest        # oldest | newest | priority_labels
     priority_labels: []
+    # Public repository? Nothing is worked on until a maintainer approves it.
+    # Adding a label requires triage permission, so the label is the gate.
+    require_label: null            # e.g. "approved"
+    trusted_associations: []       # e.g. [OWNER, MEMBER, COLLABORATOR]
   limits:
     max_concurrent_runs: 1
     timeout_minutes: 45

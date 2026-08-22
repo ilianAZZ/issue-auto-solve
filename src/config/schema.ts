@@ -18,6 +18,8 @@ export const repoSettings = z.object({
   selection: z.object({
     order: z.enum(['oldest', 'newest', 'priority_labels']),
     priority_labels: z.array(z.string()),
+    require_label: z.string().nullable(),
+    trusted_associations: z.array(z.string()),
   }),
   limits: z.object({
     max_concurrent_runs: z.number().int().positive(),

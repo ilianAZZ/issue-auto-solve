@@ -27,6 +27,7 @@ itself instead of asking the agent to re-derive it from the issue on every run.
 | `claimed` / `running` | a container is working on it |
 | `waiting_human` | the agent asked a question, we know which comment it was |
 | `pr_open` | a pull request exists, issue-auto-solve is done |
+| `needs_approval` | opened by anybody, waiting for a maintainer to approve it |
 | `skipped` | excluded by label, or already has a branch or a pull request |
 | `failed` | the run ended without a pull request, with a reason |
 
@@ -90,6 +91,22 @@ template rendered with `{{repo}}`, `{{issue_number}}`, `{{branch}}`, `{{base_bra
 `{{checks}}`, the issue body and its conversation. Set `prompt.file` to replace it
 entirely per repository, and `prompt.variables` to inject your own.
 
+## Approval gate (public repositories)
+
+On a public repository anybody can open an issue, and an agent that picks up whatever
+arrives is a liability. Set an approval label and nothing moves without a maintainer:
+
+```yaml
+selection:
+  require_label: approved
+  trusted_associations: [OWNER, MEMBER, COLLABORATOR]
+```
+
+Issues without the label sit in `needs_approval` — visible in the dashboard, never
+claimed, never read by the agent. Adding that label already requires triage permission
+on GitHub, so the label *is* the gate; `trusted_associations` narrows it further by who
+opened the issue. Remove the label and the issue goes back to waiting for approval.
+
 ## Labels are the remote control
 
 - an excluded label takes an issue out of the queue, removing it puts it back;
@@ -117,6 +134,10 @@ Runs are capped by `max_concurrent_runs` globally and per repository, by
 One page, one filter bar, every repository: what is running now, what is waiting on you
 and for how long, what was skipped and why, the last pull requests, and the full log of
 any run. Requeue or skip an issue from the drawer.
+
+## Roadmap
+
+What works, what is next and what is still untested: [ROADMAP.md](ROADMAP.md).
 
 ## Development
 

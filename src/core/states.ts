@@ -1,5 +1,6 @@
 export const TASK_STATES = [
   'discovered',
+  'needs_approval',
   'claimed',
   'running',
   'waiting_human',
@@ -11,7 +12,8 @@ export const TASK_STATES = [
 export type TaskState = (typeof TASK_STATES)[number];
 
 const transitions: Record<TaskState, TaskState[]> = {
-  discovered: ['claimed', 'skipped', 'waiting_human'],
+  discovered: ['claimed', 'skipped', 'waiting_human', 'needs_approval'],
+  needs_approval: ['discovered', 'skipped'],
   claimed: ['running', 'discovered', 'failed'],
   running: ['pr_open', 'waiting_human', 'failed', 'skipped'],
   waiting_human: ['discovered', 'skipped', 'failed'],
