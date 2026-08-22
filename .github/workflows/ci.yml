@@ -1,0 +1,26 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      # Boots with no credentials at all and must still answer.
+      - run: |
+          STATE_DIR=/tmp/state WORKSPACE_DIR=/tmp/ws LOG_DIR=/tmp/logs \
+          CONFIG_FILE=/tmp/does-not-exist.yml PORT=8420 node dist/index.js &
+          for i in $(seq 1 20); do curl -sf localhost:8420/api/health && break || sleep 1; done
+          curl -sf localhost:8420/api/health | grep -q '"ok":true'
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8420/api/tasks)" = 401

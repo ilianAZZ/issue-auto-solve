@@ -1,5 +1,5 @@
 import { join, resolve } from 'node:path';
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { loadEnv, loadGlobalConfig } from './config/index.js';
 import { openDatabase } from './db/index.js';
 import { Store } from './db/store.js';
@@ -14,7 +14,9 @@ const log = logger('issue-auto-solve');
 
 async function main() {
   const env = loadEnv();
-  const config = loadGlobalConfig(resolve(env.CONFIG_FILE));
+  const configFile = resolve(env.CONFIG_FILE);
+  const config = loadGlobalConfig(configFile);
+  if (!existsSync(configFile)) log.info(`no ${env.CONFIG_FILE}, running on defaults`);
 
   for (const dir of [env.STATE_DIR, env.WORKSPACE_DIR, env.LOG_DIR]) mkdirSync(resolve(dir), { recursive: true });
 

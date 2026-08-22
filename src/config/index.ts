@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { parse } from 'yaml';
 import { builtinDefaults } from './defaults.js';
 import { globalConfig, repoSettings, type GlobalConfig, type RepoSettings } from './schema.js';
@@ -20,8 +20,10 @@ export function merge<T>(base: T, ...layers: Array<unknown>): T {
   }, base) as T;
 }
 
+/** Absent file is not an error: everything it holds has a default, and repositories are
+ *  added from the dashboard. Mount one only to override. */
 export function loadGlobalConfig(file: string): GlobalConfig {
-  const raw = parse(readFileSync(file, 'utf8')) ?? {};
+  const raw = existsSync(file) ? (parse(readFileSync(file, 'utf8')) ?? {}) : {};
   const parsed = globalConfig.safeParse(raw);
   if (!parsed.success) {
     const details = parsed.error.issues.map((i) => `  - ${i.path.join('.')}: ${i.message}`);

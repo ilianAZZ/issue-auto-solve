@@ -1,0 +1,33 @@
+# Run the published image, no clone, no build:
+#
+#   mkdir issue-auto-solve && cd issue-auto-solve
+#   curl -O https://raw.githubusercontent.com/ilianAZZ/issue-auto-solve/main/docker-compose.prod.yml
+#   docker compose -f docker-compose.prod.yml up -d
+#   docker compose -f docker-compose.prod.yml logs | grep 'dashboard on'
+#
+# Everything else is done from the dashboard. Mount ./config only when you need the two
+# settings a repository is not allowed to set for itself (allow_env, docker_socket).
+services:
+  issue-auto-solve:
+    image: ghcr.io/ilianazz/issue-auto-solve:${TAG:-latest}
+    container_name: issue-auto-solve
+    restart: unless-stopped
+    environment:
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8420}
+      CONFIG_FILE: /app/config/issue-auto-solve.yml
+      STATE_DIR: /app/state
+      WORKSPACE_DIR: /app/workspaces
+      LOG_DIR: /app/logs
+      # Bind mounts are resolved by the host daemon, so agent containers get host paths.
+      HOST_STATE_DIR: ${PWD}/state
+      HOST_WORKSPACE_DIR: ${PWD}/workspaces
+    # Loopback only: the dashboard is token-protected but has no TLS. Reach it over an SSH
+    # tunnel, or set BIND=0.0.0.0 once a reverse proxy terminates TLS in front.
+    ports:
+      - "${BIND:-127.0.0.1}:${PORT:-8420}:8420"
+    volumes:
+      - ./state:/app/state
+      - ./workspaces:/app/workspaces
+      - ./logs:/app/logs
+      - /var/run/docker.sock:/var/run/docker.sock
+      # - ./config:/app/config:ro

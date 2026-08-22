@@ -25,6 +25,9 @@ RUN npm install --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
 COPY web ./web
 COPY prompts ./prompts
+COPY config ./config
 
 EXPOSE 8420
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:8420/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 CMD ["node", "dist/index.js"]

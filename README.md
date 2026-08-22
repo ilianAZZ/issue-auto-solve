@@ -38,10 +38,13 @@ token the agent writes under your own login and no rule can tell the two apart.
 ## Quick start
 
 ```bash
-git clone https://github.com/<you>/issue-auto-solve && cd issue-auto-solve
-docker compose up -d --build
-open http://localhost:8420
+curl -O https://raw.githubusercontent.com/ilianAZZ/issue-auto-solve/main/docker-compose.prod.yml
+docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml logs | grep 'dashboard on'   # the URL, with its token
 ```
+
+No clone, no build, no configuration file. To hack on it instead: `git clone`, then
+`docker compose up -d --build`.
 
 The first screen is the setup, and it needs no text editor:
 

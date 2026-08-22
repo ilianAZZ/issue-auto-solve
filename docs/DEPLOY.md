@@ -8,13 +8,36 @@ The runner is the only part that has never been exercised end to end.
 Docker and the compose plugin, and a user in the `docker` group. Nothing else — the
 orchestrator ships its own Node and its own Docker CLI.
 
+**No clone needed.** One compose file, and the published image:
+
+```bash
+mkdir issue-auto-solve && cd issue-auto-solve
+curl -O https://raw.githubusercontent.com/ilianAZZ/issue-auto-solve/main/docker-compose.prod.yml
+docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml logs | grep 'dashboard on'
+```
+
+While the repository is private, the image is too: log in first with a token carrying
+`read:packages`.
+
+```bash
+echo $GHCR_TOKEN | docker login ghcr.io -u <you> --password-stdin
+```
+
+Updating later is `docker compose -f docker-compose.prod.yml pull && … up -d`. No
+configuration file is required: the image ships the defaults and the rest is done from the
+dashboard. Mount `./config` only for the two settings a repository may not set for itself.
+
+<details><summary>From a clone instead, to build locally</summary>
+
 ```bash
 git clone https://github.com/<you>/issue-auto-solve && cd issue-auto-solve
-cp .env.example .env                  # nothing to fill in: the setup screen does it
+cp .env.example .env
 mkdir -p secrets state workspaces logs
 docker compose up -d --build
 docker compose logs | grep 'dashboard on'
 ```
+</details>
 
 That last line prints the dashboard URL with its token. Keep it.
 

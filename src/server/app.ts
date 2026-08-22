@@ -128,7 +128,7 @@ export async function createServer(
     return { ok: true };
   });
 
-  app.get('/api/health', async () => ({ ok: true, last_tick_at: store.meta('last_tick_at') }));
+  app.get('/api/health', async () => ({ ok: true }));
 
   return app;
 }

@@ -5,7 +5,8 @@ import { dirname } from 'node:path';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 const COOKIE = 'ias_session';
-const PUBLIC_PATHS = new Set(['/', '/index.html', '/style.css', '/app.js', '/favicon.ico']);
+// /api/health carries no data and is what container health checks call.
+const PUBLIC_PATHS = new Set(['/', '/index.html', '/style.css', '/app.js', '/favicon.ico', '/api/health']);
 
 export function resolveDashboardToken(fromEnv: string | undefined, tokenFile: string): string {
   if (fromEnv) return fromEnv;
