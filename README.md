@@ -135,6 +135,12 @@ One page, one filter bar, every repository: what is running now, what is waiting
 and for how long, what was skipped and why, the last pull requests, and the full log of
 any run. Requeue or skip an issue from the drawer.
 
+## Documentation
+
+- [docs/TESTING.md](docs/TESTING.md) — try it locally, with and without Docker
+- [docs/GITHUB-APP.md](docs/GITHUB-APP.md) — create the bot identity
+- [ROADMAP.md](ROADMAP.md) — what works, what is next, what is untested
+
 ## Roadmap
 
 What works, what is next and what is still untested: [ROADMAP.md](ROADMAP.md).
