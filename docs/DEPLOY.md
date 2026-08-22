@@ -1,0 +1,127 @@
+# Going to production
+
+The order matters: one real run on something disposable, *then* your own repositories.
+The runner is the only part that has never been exercised end to end.
+
+## 1. The host
+
+Docker and the compose plugin, and a user in the `docker` group. Nothing else — the
+orchestrator ships its own Node and its own Docker CLI.
+
+```bash
+git clone https://github.com/<you>/issue-auto-solve && cd issue-auto-solve
+cp .env.example .env                  # nothing to fill in: the setup screen does it
+mkdir -p secrets state workspaces logs
+docker compose up -d --build
+docker compose logs | grep 'dashboard on'
+```
+
+That last line prints the dashboard URL with its token. Keep it.
+
+**Do not open the port.** The dashboard is token-protected but has no TLS, and compose
+binds it to `127.0.0.1` on purpose. Reach it from your laptop with a tunnel:
+
+```bash
+ssh -N -L 8420:localhost:8420 you@your-vps
+```
+
+Then open the URL from the log, with `localhost` in place of the host. Webhooks are not
+reachable that way, which is fine: polling delivers everything they would have, a little
+later. When you later put a reverse proxy with TLS in front, set `BIND=0.0.0.0` and
+`PUBLIC_URL=https://…`, and the App will register a live webhook.
+
+## 2. The setup screen
+
+1. **GitHub** — *Create the GitHub App*. GitHub asks you to confirm, then sends you to the
+   install screen: pick the repositories. The credentials come back on their own.
+2. **Claude** — on a machine where you are logged in: `claude setup-token`, paste the
+   result. Nothing is stored in clear text.
+3. **Repositories** — add them. Leave `dispatch_enabled: false` for now.
+
+Let one poll go by and read the dashboard: the split between *Queued*, *Needs approval*,
+*Waiting on you* and *Skipped* is what the agent would actually do. If that split is
+wrong, fix it before you let anything run.
+
+## 3. The first real run — on something disposable
+
+```yaml
+# config/issue-auto-solve.yml
+dispatch_enabled: true
+max_concurrent_runs: 1
+```
+
+`docker compose restart`, and watch a throwaway repository with two trivial issues (see
+[TESTING.md](TESTING.md) for the sandbox `.issue-auto-solve.yml`).
+
+**Gate**: an issue reaches `pr_open`, the pull request is on the right base branch, and
+the next tick does not open a second one. Do not go further until this holds.
+
+## 4. This repository, worked on by itself
+
+Add `.issue-auto-solve.yml` here:
+
+```yaml
+version: 1
+base_branch: main
+labels:
+  exclude: [security]
+  waiting: needs-human-input
+selection:
+  require_label: approved         # public repository: nothing runs unapproved
+  trusted_associations: [OWNER, MEMBER, COLLABORATOR]
+runtime:
+  image: node:24-slim
+  setup:
+    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates
+    - npm install -g @anthropic-ai/claude-code
+preflight:
+  - npm ci
+checks:
+  - name: types
+    run: npm run typecheck
+  - name: build
+    run: npm run build
+```
+
+Then open the issues from [ROADMAP.md](../ROADMAP.md) step 4 and label the ones you want
+picked up with `approved`.
+
+**The one rule**: it must never redeploy itself. Merging its pull requests changes the
+code on disk; the container keeps running the image it was built from until *you* run
+`docker compose up -d --build`. Do that when no run is in flight — the dashboard says so.
+
+## 5. Your other repositories
+
+Two settings cannot come from the repository's own file, by design, so they go in
+`config/issue-auto-solve.yml` on the host:
+
+```yaml
+allow_env: [ENVIRONMENT_PASSWORD]      # the only variables a repository may request
+
+repositories:
+  - repo: you/your-app
+    enabled: true
+    settings:
+      runtime:
+        docker_socket: true            # only for repositories you own: this is root on the host
+```
+
+Everything else — image, preflight, checks, labels, prompt — belongs in that repository's
+`.issue-auto-solve.yml`, which the agent can write for you with **Generate config**.
+
+Migrating a repository that already had a bot working its backlog: issues already carrying
+the waiting label are adopted, not re-run. Check that in the dashboard before stopping the
+old loop, and keep both stopped-side-by-side for a day rather than switching blind.
+
+## 6. Day-to-day
+
+```bash
+docker compose logs -f --tail=100      # what the orchestrator is doing
+docker compose restart                 # after editing config/issue-auto-solve.yml
+docker compose up -d --build           # after pulling new code
+docker compose exec issue-auto-solve ls /app/state
+```
+
+`state/` holds the database, the encryption key and the dashboard token: it is the only
+directory worth backing up. `workspaces/` and `logs/` are disposable — and they grow
+forever until the cleanup issue in the roadmap is done, so keep an eye on disk.

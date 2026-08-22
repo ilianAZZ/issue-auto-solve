@@ -10,11 +10,15 @@ import { logger } from '../util/log.js';
 const log = logger('setup');
 const pending = new Set<string>();
 
+const reachableByGitHub = (url: string) => !/^https?:\/\/(localhost|127\.|0\.0\.0\.0|\[::1\])/.test(url);
+
 const manifestFor = (publicUrl: string, name: string) => ({
   name,
   url: publicUrl,
   redirect_url: `${publicUrl}/setup/github/callback`,
-  hook_attributes: { url: `${publicUrl}/webhooks/github`, active: true },
+  // GitHub cannot reach a tunnelled dashboard, and a webhook that always fails is noise.
+  // Polling covers everything it would have delivered.
+  hook_attributes: { url: `${publicUrl}/webhooks/github`, active: reachableByGitHub(publicUrl) },
   public: false,
   default_permissions: { issues: 'write', pull_requests: 'write', contents: 'write', metadata: 'read' },
   default_events: ['issues', 'issue_comment', 'pull_request'],

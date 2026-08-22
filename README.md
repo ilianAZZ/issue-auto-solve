@@ -149,6 +149,7 @@ any run. Requeue or skip an issue from the drawer.
 
 ## Documentation
 
+- [docs/DEPLOY.md](docs/DEPLOY.md) — put it in production, in the order that works
 - [docs/TESTING.md](docs/TESTING.md) — try it locally, with and without Docker
 - [docs/GITHUB-APP.md](docs/GITHUB-APP.md) — create the bot identity
 - [ROADMAP.md](ROADMAP.md) — what works, what is next, what is untested
