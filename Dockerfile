@@ -4,6 +4,7 @@ COPY package.json package-lock.json* ./
 RUN npm install
 COPY tsconfig.json ./
 COPY src ./src
+COPY frontend ./frontend
 RUN npm run build
 
 FROM node:24-slim
@@ -23,7 +24,7 @@ COPY package.json package-lock.json* ./
 RUN npm install --omit=dev && npm cache clean --force
 
 COPY --from=build /app/dist ./dist
-COPY web ./web
+COPY --from=build /app/frontend/dist ./frontend/dist
 COPY prompts ./prompts
 COPY config ./config
 

@@ -5,8 +5,10 @@ import { dirname } from 'node:path';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 const COOKIE = 'ias_session';
-// /api/health carries no data and is what container health checks call.
-const PUBLIC_PATHS = new Set(['/', '/index.html', '/style.css', '/app.js', '/favicon.ico', '/api/health']);
+// /api/health carries no data and is what container health checks call. The built frontend's
+// hashed JS/CSS bundles live under /assets/ and must load before there's a session to check.
+const PUBLIC_PATHS = new Set(['/', '/index.html', '/favicon.ico', '/api/health']);
+const isPublicAsset = (path: string) => PUBLIC_PATHS.has(path) || path.startsWith('/assets/');
 
 export function resolveDashboardToken(fromEnv: string | undefined, tokenFile: string): string {
   if (fromEnv) return fromEnv;
@@ -54,7 +56,7 @@ export function registerAuth(app: FastifyInstance, token: string, secure: boolea
 
   app.addHook('onRequest', async (request, reply) => {
     const path = request.url.split('?')[0] ?? '/';
-    if (path === '/webhooks/github' || path === '/login' || PUBLIC_PATHS.has(path)) return;
+    if (path === '/webhooks/github' || path === '/login' || isPublicAsset(path)) return;
     const supplied = presented(request);
     if (!supplied || !equal(supplied, token)) {
       return reply.code(401).send({ error: 'unauthorized' });

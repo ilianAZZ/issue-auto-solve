@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f7f7f9;
+  --panel: #ffffff;
+  --panel-2: #fbfbfd;
+  --border: #e5e5ea;
+  --text: #16161a;
+  --muted: #71717a;
+  --accent: #6d4aff;
+  --accent-soft: #efeaff;
+  --green: #16794a;
+  --green-soft: #dcf5e8;
+  --amber: #8a5a00;
+  --amber-soft: #fdf0d5;
+  --red: #a02334;
+  --red-soft: #fde4e7;
+  --blue: #1d4ed8;
+  --blue-soft: #e3ebff;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d0d11;
+    --panel: #15151b;
+    --panel-2: #101015;
+    --border: #26262f;
+    --text: #ececf1;
+    --muted: #8b8b98;
+    --accent: #a48bff;
+    --accent-soft: #241d3d;
+    --green: #7ee2b0;
+    --green-soft: #10261d;
+    --amber: #f0c073;
+    --amber-soft: #2a2113;
+    --red: #ff9aa6;
+    --red-soft: #2d151a;
+    --blue: #9dbaff;
+    --blue-soft: #151d33;
+    color-scheme: dark;
+  }
+}
+
+@theme {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-green: var(--green);
+  --color-green-soft: var(--green-soft);
+  --color-amber: var(--amber);
+  --color-amber-soft: var(--amber-soft);
+  --color-red: var(--red);
+  --color-red-soft: var(--red-soft);
+  --color-blue: var(--blue);
+  --color-blue-soft: var(--blue-soft);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+  --animate-ping-once: ping-once 1.6s ease-out infinite;
+}
+
+@keyframes ping-once {
+  70% {
+    box-shadow: 0 0 0 7px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0.4;
+  }
+}
+
+body {
+  @apply bg-bg text-text font-sans antialiased;
+}

@@ -14,7 +14,7 @@ import { registerAuth } from './auth.js';
 import type { Credentials } from '../core/credentials.js';
 
 const log = logger('server');
-const webRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'web');
+const webRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'frontend', 'dist');
 
 const decorate = (store: Store) => (task: TaskRow) => {
   const repo = store.repos().find((r) => r.id === task.repo_id);
