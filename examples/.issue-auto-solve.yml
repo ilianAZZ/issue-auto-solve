@@ -15,6 +15,8 @@ selection:
   priority_labels: [P0, P1, P2]
   require_label: approved          # only issues a maintainer labelled are eligible
   trusted_associations: [OWNER, MEMBER, COLLABORATOR]
+  whitelist_users: []              # specific logins trusted even without a matching association
+  blacklist_users: []              # logins whose issues are skipped outright, like an excluded label
 
 runtime:
   image: ghcr.io/acme/breem-agent:latest

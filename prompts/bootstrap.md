@@ -30,6 +30,8 @@ selection:
   priority_labels: [<in order, e.g. P0, P1, P2>]
   require_label: <set it on a public repository, e.g. approved; null otherwise>
   trusted_associations: [OWNER, MEMBER, COLLABORATOR]
+  whitelist_users: [<specific logins trusted even without a matching association, if any>]
+  blacklist_users: [<logins whose issues must never be picked up, if any>]
 runtime:
   image: <an image that can build and test this project, plus git and claude>
   docker_socket: <true only if the test suite needs a Docker daemon>

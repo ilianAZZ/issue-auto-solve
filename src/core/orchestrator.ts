@@ -229,40 +229,50 @@ export class Orchestrator {
   /**
    * On a public repository anybody can open an issue, so nothing is worked on until a
    * maintainer approves it. Applying a label already requires triage permission, which
-   * makes the label itself the gate; trusted_associations narrows it further by who opened
-   * the issue.
+   * makes the label itself the gate; trusted_associations and whitelist_users narrow it
+   * further by who opened the issue — either one is enough to pass, since together they
+   * form a single whitelist expressed as groups or as individual logins.
    */
-  private approvalGate(context: RepoContext, labels: string[], authorAssociation: string): string | null {
-    const { require_label: required, trusted_associations: trusted } = context.settings.selection;
+  private approvalGate(context: RepoContext, labels: string[], author: string, authorAssociation: string): string | null {
+    const { require_label: required, trusted_associations: trusted, whitelist_users: whitelisted } = context.settings.selection;
     if (required && !labels.includes(required)) return `waiting for a maintainer to add the "${required}" label`;
-    if (trusted.length && !trusted.includes(authorAssociation)) return `opened by ${authorAssociation}, not a trusted author`;
+    if ((trusted.length || whitelisted.length) && !trusted.includes(authorAssociation) && !whitelisted.includes(author)) {
+      return `opened by ${author} (${authorAssociation}), not on the trusted list`;
+    }
     return null;
   }
 
   /**
-   * Labels are the human's remote control: excluding one takes the issue out of the queue,
-   * the waiting label parks it. Adopting a repository that was already using the waiting
-   * label must not re-run work that is genuinely waiting for an answer.
+   * Labels and users are the human's remote control: excluding a label or blacklisting a
+   * user takes the issue out of the queue, the waiting label parks it. Adopting a
+   * repository that was already using the waiting label must not re-run work that is
+   * genuinely waiting for an answer.
    */
   private async reconcileLabels(
     context: RepoContext,
     access: RepoAccess,
     task: TaskRow,
-    issue: { labels: string[]; authorAssociation: string },
+    issue: { labels: string[]; author: string; authorAssociation: string },
   ): Promise<void> {
     const labels = issue.labels;
-    const excluded = labels.some((label) => context.settings.labels.exclude.includes(label));
+    const excludedLabel = labels.find((label) => context.settings.labels.exclude.includes(label)) ?? null;
+    const blacklistedUser = context.settings.selection.blacklist_users.includes(issue.author) ? issue.author : null;
+    const excluded = Boolean(excludedLabel || blacklistedUser);
     const waitingLabel = context.settings.labels.waiting;
     const parked = Boolean(waitingLabel) && labels.includes(waitingLabel);
-    const gate = this.approvalGate(context, labels, issue.authorAssociation);
+    const gate = this.approvalGate(context, labels, issue.author, issue.authorAssociation);
 
     if (task.state === 'discovered' && excluded) {
-      const label = labels.find((l) => context.settings.labels.exclude.includes(l));
-      this.store.transition(task.id, 'skipped', { reason: `excluded by label "${label}"` });
+      const reason = excludedLabel ? `excluded by label "${excludedLabel}"` : `blacklisted user "${blacklistedUser}"`;
+      this.store.transition(task.id, 'skipped', { reason });
       return;
     }
-    if (task.state === 'skipped' && !excluded && (task.reason ?? '').startsWith('excluded by label')) {
-      this.store.transition(task.id, 'discovered', {}, 'exclusion label removed');
+    if (
+      task.state === 'skipped' &&
+      !excluded &&
+      ((task.reason ?? '').startsWith('excluded by label') || (task.reason ?? '').startsWith('blacklisted user'))
+    ) {
+      this.store.transition(task.id, 'discovered', {}, 'exclusion removed');
       return;
     }
     if (gate && task.state === 'discovered') {
@@ -593,6 +603,11 @@ export class Orchestrator {
     const github = this.client();
     if (!github) throw new Error('GitHub is not configured yet');
     return github;
+  }
+
+  /** Exposes repo-scoped GitHub access to the dashboard API, e.g. to list real labels and users. */
+  async repoAccess(fullName: string): Promise<RepoAccess> {
+    return this.gh().access(fullName);
   }
 
   private contextFor(task: TaskRow): RepoContext | undefined {

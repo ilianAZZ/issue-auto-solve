@@ -10,6 +10,20 @@ import { logger } from '../util/log.js';
 const log = logger('setup');
 const pending = new Set<string>();
 
+// GitHub's fixed author_association values — not repository data, so nothing to fetch;
+// listed here purely so the dashboard can offer them as "groups" alongside real labels
+// and users.
+const AUTHOR_ASSOCIATIONS = [
+  'OWNER',
+  'MEMBER',
+  'COLLABORATOR',
+  'CONTRIBUTOR',
+  'FIRST_TIME_CONTRIBUTOR',
+  'FIRST_TIMER',
+  'MANNEQUIN',
+  'NONE',
+];
+
 const reachableByGitHub = (url: string) => !/^https?:\/\/(localhost|127\.|0\.0\.0\.0|\[::1\])/.test(url);
 
 const manifestFor = (publicUrl: string, name: string) => ({
@@ -140,4 +154,34 @@ export function registerSetup(
       return reply.code(202).send({ ok: true });
     },
   );
+
+  // Feeds the "selection" conditions in .issue-auto-solve.yml (require_label,
+  // trusted_associations, whitelist_users, blacklist_users): real labels and
+  // collaborators for this repository, plus GitHub's fixed association groups.
+  app.get<{ Params: { owner: string; name: string } }>('/api/repos/:owner/:name/conditions', async (request, reply) => {
+    const full = `${request.params.owner}/${request.params.name}`;
+    if (!store.repoByName(full)) return reply.code(404).send({ error: 'unknown repository' });
+    try {
+      const access = await orchestrator.repoAccess(full);
+      const [labels, collaborators] = await Promise.all([
+        access.octokit.paginate(access.octokit.issues.listLabelsForRepo, {
+          owner: access.owner,
+          repo: access.name,
+          per_page: 100,
+        }),
+        access.octokit.paginate(access.octokit.repos.listCollaborators, {
+          owner: access.owner,
+          repo: access.name,
+          per_page: 100,
+        }).catch(() => []),
+      ]);
+      return {
+        labels: labels.map((label) => label.name).sort(),
+        users: collaborators.map((user) => user.login).sort(),
+        groups: AUTHOR_ASSOCIATIONS,
+      };
+    } catch (error) {
+      return reply.code(502).send({ error: String(error) });
+    }
+  });
 }
