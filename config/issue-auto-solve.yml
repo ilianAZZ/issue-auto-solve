@@ -37,7 +37,9 @@ defaults:
     # turn this on from its own .issue-auto-solve.yml.
     docker_socket: false
     env: []
-    setup: []
+    setup:
+      - apt-get update && apt-get install -y --no-install-recommends git ca-certificates
+      - npm install -g @anthropic-ai/claude-code
   preflight: []
   checks: []
   prompt:
