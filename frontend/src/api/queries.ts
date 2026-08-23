@@ -41,7 +41,7 @@ export function useTask(id: number | null) {
 export function useRunLog(runId: number | null) {
   return useQuery({
     queryKey: ['run-log', runId],
-    queryFn: () => api.get<string>(`/api/runs/${runId}/log`),
+    queryFn: () => api.get<string>(`/api/runs/${runId}/log`, { silent: true }),
     enabled: runId != null,
     retry: false,
   });

@@ -8,7 +8,6 @@ import {
   useSaveGithubToken,
   useSetupStatus,
 } from '../api/queries';
-import { ApiError } from '../api/client';
 import { ago } from '../lib/format';
 import { Button } from './ui/Button';
 import { BootstrapModal } from './BootstrapModal';
@@ -54,18 +53,15 @@ export function SetupOverlay({ onClose }: { onClose: () => void }) {
     try {
       await saveGithubToken.mutateAsync(ghToken);
       setGhToken('');
-    } catch (error) {
-      alert(error instanceof ApiError ? error.message : 'could not save the token');
+    } catch {
+      // surfaced by the global error banner
     }
   }
 
   function addRepoNow() {
     const repo = repoInput.trim();
     if (!repo) return;
-    addRepo.mutate(repo, {
-      onSuccess: () => setRepoInput(''),
-      onError: (error) => alert(error instanceof ApiError ? error.message : 'could not add the repository'),
-    });
+    addRepo.mutate(repo, { onSuccess: () => setRepoInput('') });
   }
 
   return (

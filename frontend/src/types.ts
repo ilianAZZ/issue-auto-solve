@@ -33,6 +33,7 @@ export interface Overview {
   busy: number;
   capacity: number;
   last_tick_at: string | null;
+  claude_token_invalid: boolean;
   counts: OverviewCounts;
   repos: RepoOverview[];
 }

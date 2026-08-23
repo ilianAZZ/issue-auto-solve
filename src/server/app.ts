@@ -60,6 +60,7 @@ export async function createServer(
       busy: orchestrator.busy,
       capacity: orchestrator.capacity,
       last_tick_at: store.meta('last_tick_at'),
+      claude_token_invalid: store.meta('claude_token_invalid') === '1',
       counts,
       repos: store.repos().map((repo) => ({
         full_name: repo.full_name,

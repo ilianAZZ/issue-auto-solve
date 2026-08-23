@@ -75,7 +75,6 @@ export function TaskDrawer({ taskId, onClose }: { taskId: number; onClose: () =>
               <Button onClick={() => act('skip')} disabled={action.isPending}>
                 Skip
               </Button>
-              {action.isError && <span className="self-center text-[12.5px] text-red-500">{action.error.message}</span>}
             </>
           )}
         </div>

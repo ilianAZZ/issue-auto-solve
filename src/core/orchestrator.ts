@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Env, GlobalConfig, RepoSettings } from '../config/index.js';
@@ -16,6 +16,26 @@ import { now } from '../util/time.js';
 
 const log = logger('orchestrator');
 const here = dirname(fileURLToPath(import.meta.url));
+
+// Claude Code prints this and exits before doing anything else, so it always shows up
+// near the end of a short log — a tail read is enough and keeps this cheap on big logs.
+const CLAUDE_AUTH_ERROR_MARKER = 'OAuth access token is invalid';
+const LOG_TAIL_BYTES = 65_536;
+
+function logTailContains(logPath: string, marker: string): boolean {
+  if (!existsSync(logPath)) return false;
+  const size = statSync(logPath).size;
+  const length = Math.min(size, LOG_TAIL_BYTES);
+  if (length === 0) return false;
+  const buffer = Buffer.alloc(length);
+  const fd = openSync(logPath, 'r');
+  try {
+    readSync(fd, buffer, 0, length, size - length);
+  } finally {
+    closeSync(fd);
+  }
+  return buffer.toString('utf8').includes(marker);
+}
 
 interface RepoContext {
   id: number;
@@ -377,6 +397,13 @@ export class Orchestrator {
         log,
       );
 
+      if (result.status === 'succeeded') {
+        this.store.setMeta('claude_token_invalid', '0');
+      } else if (logTailContains(logPath, CLAUDE_AUTH_ERROR_MARKER)) {
+        this.store.setMeta('claude_token_invalid', '1');
+        log.error(`${context.fullName}#${task.number}: the Claude Code token was rejected`);
+      }
+
       await this.settle(context, task, run.id, result.status, result.exitCode, branch, workspace.path);
     } catch (error) {
       this.store.finishRun(run.id, 'failed', null, String(error));
@@ -536,6 +563,13 @@ export class Orchestrator {
         },
         log,
       );
+
+      if (result.status === 'succeeded') {
+        this.store.setMeta('claude_token_invalid', '0');
+      } else if (logTailContains(logPath, CLAUDE_AUTH_ERROR_MARKER)) {
+        this.store.setMeta('claude_token_invalid', '1');
+        log.error(`${fullName}: the Claude Code token was rejected`);
+      }
 
       const work = await existingWork(access, 0, 'issue-auto-solve/config');
       this.store.finishBootstrap(

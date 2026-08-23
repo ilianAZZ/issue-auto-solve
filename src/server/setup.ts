@@ -102,6 +102,7 @@ export function registerSetup(
     const token = request.body?.token?.trim();
     if (!token) return reply.code(400).send({ error: 'empty token' });
     credentials.saveClaudeToken(token);
+    store.setMeta('claude_token_invalid', '0');
     return { ok: true };
   });
 
