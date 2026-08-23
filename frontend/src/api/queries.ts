@@ -50,7 +50,7 @@ export function useRunLog(runId: number | null) {
 export function useTaskAction() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, action }: { id: number; action: 'requeue' | 'skip' }) =>
+    mutationFn: ({ id, action }: { id: number; action: 'requeue' | 'skip' | 'force' }) =>
       api.post(`/api/tasks/${id}/${action}`),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ['tasks'] });

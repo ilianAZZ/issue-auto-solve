@@ -293,6 +293,32 @@ export class Orchestrator {
     }
   }
 
+  /**
+   * Manual override from the dashboard: run this task right now, bypassing the approval
+   * gate, exclude labels, the waiting-human park, the dispatch pause, and every concurrency
+   * limit. It still refuses to clobber a task that is already claimed or running, and still
+   * backs off if a branch or pull request already exists for it.
+   */
+  async forceRun(taskId: number): Promise<{ ok: true } | { ok: false; error: string }> {
+    let task = this.store.task(taskId);
+    if (!task) return { ok: false, error: 'unknown task' };
+    if (this.inflight.has(task.id) || task.state === 'claimed' || task.state === 'running') {
+      return { ok: false, error: 'already running' };
+    }
+    const context = this.contextFor(task);
+    if (!context) return { ok: false, error: 'repository is not configured' };
+    if (task.state !== 'discovered') {
+      task = this.store.transition(task.id, 'discovered', {}, 'forced from the dashboard');
+    }
+    const claimed = await this.claim(context, task);
+    if (!claimed) {
+      const fresh = this.store.task(taskId);
+      return { ok: false, error: fresh?.reason ?? 'a branch or pull request already exists' };
+    }
+    void this.execute(context, claimed);
+    return { ok: true };
+  }
+
   private async claim(context: RepoContext, task: TaskRow): Promise<TaskRow | null> {
     const branch = render(context.settings.branch_pattern, { number: task.number });
     const access = await this.gh().access(context.fullName);

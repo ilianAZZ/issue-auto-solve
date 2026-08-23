@@ -20,6 +20,12 @@ export function TaskDrawer({ taskId, onClose }: { taskId: number; onClose: () =>
     action.mutate({ id: taskId, action: kind }, { onSuccess: onClose });
   }
 
+  function forceRun() {
+    action.mutate({ id: taskId, action: 'force' });
+  }
+
+  const active = data?.task.state === 'claimed' || data?.task.state === 'running';
+
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/30" onClick={onClose} />
@@ -60,12 +66,16 @@ export function TaskDrawer({ taskId, onClose }: { taskId: number; onClose: () =>
                   Pull request
                 </LinkButton>
               )}
+              <Button variant="primary" onClick={forceRun} disabled={action.isPending || active}>
+                Force run
+              </Button>
               <Button onClick={() => act('requeue')} disabled={action.isPending}>
                 Requeue
               </Button>
               <Button onClick={() => act('skip')} disabled={action.isPending}>
                 Skip
               </Button>
+              {action.isError && <span className="self-center text-[12.5px] text-red-500">{action.error.message}</span>}
             </>
           )}
         </div>

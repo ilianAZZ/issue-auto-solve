@@ -94,6 +94,11 @@ export async function createServer(
     const task = store.task(Number(request.params.id));
     if (!task) return reply.code(404).send({ error: 'unknown task' });
     const { action } = request.params;
+    if (action === 'force') {
+      const result = await orchestrator.forceRun(task.id);
+      if (!result.ok) return reply.code(409).send({ error: result.error });
+      return { ok: true };
+    }
     if (action === 'requeue') store.transition(task.id, 'discovered', {}, 'requeued from the dashboard');
     else if (action === 'skip') store.transition(task.id, 'skipped', { reason: 'skipped from the dashboard' });
     else return reply.code(400).send({ error: 'unknown action' });
