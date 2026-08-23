@@ -15,7 +15,7 @@ const transitions: Record<TaskState, TaskState[]> = {
   discovered: ['claimed', 'skipped', 'waiting_human', 'needs_approval'],
   needs_approval: ['discovered', 'skipped'],
   claimed: ['running', 'discovered', 'failed'],
-  running: ['pr_open', 'waiting_human', 'failed', 'skipped'],
+  running: ['pr_open', 'waiting_human', 'failed', 'skipped', 'discovered'],
   waiting_human: ['discovered', 'skipped', 'failed'],
   pr_open: ['discovered'],
   skipped: ['discovered'],
