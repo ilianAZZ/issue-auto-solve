@@ -3,6 +3,7 @@ import { onUnauthorized } from './api/client';
 import { useOverview, useSetupStatus } from './api/queries';
 import { Header } from './components/Header';
 import { StatsGrid } from './components/StatsGrid';
+import { UsageByRepo } from './components/UsageByRepo';
 import { FilterBar } from './components/FilterBar';
 import { TaskTable } from './components/TaskTable';
 import { TaskDrawer } from './components/TaskDrawer';
@@ -47,6 +48,7 @@ export default function App() {
       <Header onOpenSetup={() => setSetupOpen(true)} />
       <main className="mx-auto max-w-[1180px] px-6 py-6">
         <StatsGrid />
+        <UsageByRepo />
         <FilterBar filters={filters} onChange={setFilters} />
         <TaskTable filters={filters} onOpenTask={setOpenTaskId} />
       </main>

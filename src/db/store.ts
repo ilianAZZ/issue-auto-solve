@@ -1,6 +1,7 @@
 import type { Db } from './index.js';
 import { canTransition, InvalidTransition, type TaskState } from '../core/states.js';
 import { now } from '../util/time.js';
+import type { RunUsage } from '../util/usage.js';
 
 export interface RepoRow {
   id: number;
@@ -41,8 +42,25 @@ export interface RunRow {
   log_path: string;
   exit_code: number | null;
   error: string | null;
+  cost_usd: number | null;
+  duration_ms: number | null;
+  num_turns: number | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cache_creation_input_tokens: number | null;
+  cache_read_input_tokens: number | null;
   started_at: string;
   ended_at: string | null;
+}
+
+export interface UsageTotals {
+  run_count: number;
+  cost_usd: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_input_tokens: number;
+  cache_read_input_tokens: number;
+  duration_ms: number;
 }
 
 export interface EventRow {
@@ -61,6 +79,12 @@ export interface BootstrapRow {
   instructions: string;
   log_path: string;
   result: string | null;
+  cost_usd: number | null;
+  duration_ms: number | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cache_creation_input_tokens: number | null;
+  cache_read_input_tokens: number | null;
   started_at: string;
   ended_at: string | null;
 }
@@ -225,10 +249,28 @@ export class Store {
     return this.db.prepare('SELECT * FROM runs WHERE task_id = ? ORDER BY id DESC LIMIT 1').get(taskId) as unknown as RunRow;
   }
 
-  finishRun(runId: number, status: RunRow['status'], exitCode: number | null, error: string | null): void {
+  finishRun(runId: number, status: RunRow['status'], exitCode: number | null, error: string | null, usage: RunUsage | null = null): void {
     this.db
-      .prepare('UPDATE runs SET status = ?, exit_code = ?, error = ?, ended_at = ? WHERE id = ?')
-      .run(status, exitCode, error, now(), runId);
+      .prepare(
+        `UPDATE runs SET status = ?, exit_code = ?, error = ?, ended_at = ?,
+           cost_usd = ?, duration_ms = ?, num_turns = ?, input_tokens = ?, output_tokens = ?,
+           cache_creation_input_tokens = ?, cache_read_input_tokens = ?
+         WHERE id = ?`,
+      )
+      .run(
+        status,
+        exitCode,
+        error,
+        now(),
+        usage?.cost_usd ?? null,
+        usage?.duration_ms ?? null,
+        usage?.num_turns ?? null,
+        usage?.input_tokens ?? null,
+        usage?.output_tokens ?? null,
+        usage?.cache_creation_input_tokens ?? null,
+        usage?.cache_read_input_tokens ?? null,
+        runId,
+      );
   }
 
   runsFor(taskId: number, limit = 10): RunRow[] {
@@ -239,6 +281,61 @@ export class Store {
 
   run(id: number): RunRow | undefined {
     return this.db.prepare('SELECT * FROM runs WHERE id = ?').get(id) as RunRow | undefined;
+  }
+
+  taskUsage(taskId: number): UsageTotals {
+    return this.db
+      .prepare(
+        `SELECT COUNT(*) AS run_count,
+                COALESCE(SUM(cost_usd), 0) AS cost_usd,
+                COALESCE(SUM(input_tokens), 0) AS input_tokens,
+                COALESCE(SUM(output_tokens), 0) AS output_tokens,
+                COALESCE(SUM(cache_creation_input_tokens), 0) AS cache_creation_input_tokens,
+                COALESCE(SUM(cache_read_input_tokens), 0) AS cache_read_input_tokens,
+                COALESCE(SUM(duration_ms), 0) AS duration_ms
+         FROM runs WHERE task_id = ?`,
+      )
+      .get(taskId) as unknown as UsageTotals;
+  }
+
+  /** Global spend across every task run and repository bootstrap, the two places a container ever calls Claude. */
+  usageSummary(): UsageTotals {
+    return this.db
+      .prepare(
+        `SELECT COUNT(*) AS run_count,
+                COALESCE(SUM(cost_usd), 0) AS cost_usd,
+                COALESCE(SUM(input_tokens), 0) AS input_tokens,
+                COALESCE(SUM(output_tokens), 0) AS output_tokens,
+                COALESCE(SUM(cache_creation_input_tokens), 0) AS cache_creation_input_tokens,
+                COALESCE(SUM(cache_read_input_tokens), 0) AS cache_read_input_tokens,
+                COALESCE(SUM(duration_ms), 0) AS duration_ms
+         FROM (
+           SELECT cost_usd, input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens, duration_ms FROM runs
+           UNION ALL
+           SELECT cost_usd, input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens, duration_ms FROM bootstrap_runs
+         )`,
+      )
+      .get() as unknown as UsageTotals;
+  }
+
+  usageByRepo(): (UsageTotals & { repo_id: number; full_name: string })[] {
+    return this.db
+      .prepare(
+        `SELECT r.id AS repo_id, r.full_name AS full_name,
+                COUNT(runs.id) AS run_count,
+                COALESCE(SUM(runs.cost_usd), 0) AS cost_usd,
+                COALESCE(SUM(runs.input_tokens), 0) AS input_tokens,
+                COALESCE(SUM(runs.output_tokens), 0) AS output_tokens,
+                COALESCE(SUM(runs.cache_creation_input_tokens), 0) AS cache_creation_input_tokens,
+                COALESCE(SUM(runs.cache_read_input_tokens), 0) AS cache_read_input_tokens,
+                COALESCE(SUM(runs.duration_ms), 0) AS duration_ms
+         FROM repos r
+         LEFT JOIN tasks t ON t.repo_id = r.id
+         LEFT JOIN runs ON runs.task_id = t.id
+         GROUP BY r.id
+         ORDER BY cost_usd DESC`,
+      )
+      .all() as unknown as (UsageTotals & { repo_id: number; full_name: string })[];
   }
 
   event(taskId: number | null, runId: number | null, kind: string, message: string): void {
@@ -261,10 +358,26 @@ export class Store {
     return row.id;
   }
 
-  finishBootstrap(id: number, status: string, result: string | null): void {
+  finishBootstrap(id: number, status: string, result: string | null, usage: RunUsage | null = null): void {
     this.db
-      .prepare('UPDATE bootstrap_runs SET status = ?, result = ?, ended_at = ? WHERE id = ?')
-      .run(status, result, now(), id);
+      .prepare(
+        `UPDATE bootstrap_runs SET status = ?, result = ?, ended_at = ?,
+           cost_usd = ?, duration_ms = ?, input_tokens = ?, output_tokens = ?,
+           cache_creation_input_tokens = ?, cache_read_input_tokens = ?
+         WHERE id = ?`,
+      )
+      .run(
+        status,
+        result,
+        now(),
+        usage?.cost_usd ?? null,
+        usage?.duration_ms ?? null,
+        usage?.input_tokens ?? null,
+        usage?.output_tokens ?? null,
+        usage?.cache_creation_input_tokens ?? null,
+        usage?.cache_read_input_tokens ?? null,
+        id,
+      );
   }
 
   lastBootstrap(repoId: number): BootstrapRow | undefined {

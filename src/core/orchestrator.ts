@@ -13,6 +13,7 @@ import { prepareWorkspace, discardWorkspace } from '../runner/workspace.js';
 import { logger } from '../util/log.js';
 import { notifier, type Notify } from '../util/notify.js';
 import { now } from '../util/time.js';
+import { parseRunUsage, type RunUsage } from '../util/usage.js';
 
 const log = logger('orchestrator');
 const here = dirname(fileURLToPath(import.meta.url));
@@ -404,7 +405,8 @@ export class Orchestrator {
         log.error(`${context.fullName}#${task.number}: the Claude Code token was rejected`);
       }
 
-      await this.settle(context, task, run.id, result.status, result.exitCode, branch, workspace.path);
+      const usage = parseRunUsage(logPath);
+      await this.settle(context, task, run.id, result.status, result.exitCode, branch, workspace.path, usage);
     } catch (error) {
       this.store.finishRun(run.id, 'failed', null, String(error));
       this.store.transition(task.id, 'failed', { reason: String(error) }, 'run crashed');
@@ -423,13 +425,14 @@ export class Orchestrator {
     exitCode: number | null,
     branch: string,
     workspacePath: string,
+    usage: RunUsage | null,
   ): Promise<void> {
     const access = await this.gh().access(context.fullName);
     const run = this.store.run(runId);
     const work = await existingWork(access, task.number, branch);
 
     if (work.pullRequest) {
-      this.store.finishRun(runId, 'succeeded', exitCode, null);
+      this.store.finishRun(runId, 'succeeded', exitCode, null, usage);
       this.store.transition(task.id, 'pr_open', { pr_url: work.pullRequest, branch }, `pull request opened`);
       discardWorkspace(workspacePath);
       await this.notify(`✅ ${context.fullName}#${task.number} → ${work.pullRequest}`);
@@ -439,7 +442,7 @@ export class Orchestrator {
     const question = await lastCommentBy(access, task.number, this.botLogin);
     const askedDuringRun = question && run && new Date(question.createdAt).getTime() >= new Date(run.started_at).getTime();
     if (askedDuringRun) {
-      this.store.finishRun(runId, 'succeeded', exitCode, null);
+      this.store.finishRun(runId, 'succeeded', exitCode, null, usage);
       await setLabel(access, task.number, context.settings.labels.waiting, true);
       this.store.transition(
         task.id,
@@ -453,7 +456,7 @@ export class Orchestrator {
     }
 
     const reason = status === 'timeout' ? `timed out after ${context.settings.limits.timeout_minutes}m` : `agent exited with code ${exitCode ?? '?'} without opening a pull request`;
-    this.store.finishRun(runId, status === 'timeout' ? 'timeout' : 'failed', exitCode, reason);
+    this.store.finishRun(runId, status === 'timeout' ? 'timeout' : 'failed', exitCode, reason, usage);
     this.store.transition(task.id, 'failed', { branch, reason }, reason);
     await this.notify(`⚠️ ${context.fullName}#${task.number}: ${reason}`);
   }
@@ -576,6 +579,7 @@ export class Orchestrator {
         id,
         work.pullRequest ? 'succeeded' : 'failed',
         work.pullRequest ?? `no pull request opened (container ${result.status})`,
+        parseRunUsage(logPath),
       );
       discardWorkspace(workspace.path);
       if (work.pullRequest) await this.notify(`⚙️ ${fullName}: configuration proposed → ${work.pullRequest}`);

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useRunLog, useTask, useTaskAction } from '../api/queries';
-import { ago } from '../lib/format';
+import { ago, cost, duration, tokens } from '../lib/format';
 import { Pill } from './Pill';
 import { Button, LinkButton } from './ui/Button';
 
@@ -90,6 +90,34 @@ export function TaskDrawer({ taskId, onClose }: { taskId: number; onClose: () =>
               </li>
             ))}
           </ol>
+          {data && data.task.usage.run_count > 0 && (
+            <>
+              <h3 className="mt-4.5 mb-2 text-[11.5px] font-semibold tracking-wide text-muted uppercase">Claude usage</h3>
+              <div className="mb-3 flex flex-wrap gap-x-5 gap-y-1 text-[13px] text-muted">
+                <span>
+                  <strong className="text-text font-semibold">{cost(data.task.usage.cost_usd)}</strong> total
+                </span>
+                <span>{tokens(data.task.usage.input_tokens + data.task.usage.output_tokens)} tokens</span>
+                <span>{duration(data.task.usage.duration_ms)} compute time</span>
+                <span>
+                  {data.task.usage.run_count} run{data.task.usage.run_count === 1 ? '' : 's'}
+                </span>
+              </div>
+              <ul className="m-0 mb-2 list-none p-0 text-[12.5px] text-muted">
+                {data.runs
+                  .filter((r) => r.cost_usd != null)
+                  .map((r) => (
+                    <li key={r.id} className="flex justify-between border-b border-border py-1 last:border-0">
+                      <span>{new Date(r.started_at).toLocaleString()}</span>
+                      <span>
+                        {cost(r.cost_usd ?? 0)} · {tokens((r.input_tokens ?? 0) + (r.output_tokens ?? 0))} tok
+                        {r.duration_ms != null ? ` · ${duration(r.duration_ms)}` : ''}
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            </>
+          )}
           <h3 className="mt-4.5 mb-2 text-[11.5px] font-semibold tracking-wide text-muted uppercase">Last run</h3>
           <pre className="max-h-[46vh] overflow-auto rounded-[10px] border border-border bg-panel-2 p-3.5 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap text-muted">
             {run ? (logFailed ? 'Log not available.' : (log ?? 'Loading…')) : 'No run yet.'}

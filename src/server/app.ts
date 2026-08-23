@@ -23,6 +23,7 @@ const decorate = (store: Store) => (task: TaskRow) => {
     labels: JSON.parse(task.labels_json) as string[],
     repo: repo?.full_name ?? 'unknown',
     last_run: store.runsFor(task.id, 1)[0] ?? null,
+    usage: store.taskUsage(task.id),
   };
 };
 
@@ -54,6 +55,7 @@ export async function createServer(
   app.get('/api/overview', async () => {
     const tasks = TASK_STATES.flatMap((state) => store.byState(state));
     const counts = Object.fromEntries(TASK_STATES.map((state) => [state, store.byState(state).length]));
+    const usageByRepo = store.usageByRepo();
     return {
       status: !orchestrator.dispatching ? 'paused' : orchestrator.busy > 0 ? 'working' : 'idle',
       dispatching: orchestrator.dispatching,
@@ -62,12 +64,14 @@ export async function createServer(
       last_tick_at: store.meta('last_tick_at'),
       claude_token_invalid: store.meta('claude_token_invalid') === '1',
       counts,
+      usage: store.usageSummary(),
       repos: store.repos().map((repo) => ({
         full_name: repo.full_name,
         enabled: Boolean(repo.enabled),
         last_sync_at: repo.last_sync_at,
         last_error: repo.last_error,
         active: store.countActive(repo.id),
+        usage: usageByRepo.find((u) => u.repo_id === repo.id) ?? null,
       })),
       running: tasks.filter((t) => t.state === 'running' || t.state === 'claimed').map(view),
     };
