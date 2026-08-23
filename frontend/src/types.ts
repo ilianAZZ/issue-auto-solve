@@ -19,12 +19,23 @@ export interface OverviewCounts {
   skipped: number;
 }
 
+export interface Usage {
+  run_count: number;
+  cost_usd: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_input_tokens: number;
+  cache_read_input_tokens: number;
+  duration_ms: number;
+}
+
 export interface RepoOverview {
   full_name: string;
   enabled: boolean;
   last_sync_at: string | null;
   last_error: string | null;
   active: number;
+  usage: Usage | null;
 }
 
 export interface Overview {
@@ -35,6 +46,7 @@ export interface Overview {
   last_tick_at: string | null;
   claude_token_invalid: boolean;
   counts: OverviewCounts;
+  usage: Usage;
   repos: RepoOverview[];
 }
 
@@ -53,6 +65,7 @@ export interface Task {
   entered_state_at: string;
   updated_at: string;
   repo: string;
+  usage: Usage;
 }
 
 export interface TaskEvent {
@@ -65,6 +78,13 @@ export interface TaskEvent {
 export interface Run {
   id: number;
   status: 'running' | 'succeeded' | 'failed' | 'timeout' | 'cancelled';
+  cost_usd: number | null;
+  duration_ms: number | null;
+  num_turns: number | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cache_creation_input_tokens: number | null;
+  cache_read_input_tokens: number | null;
   started_at: string;
   ended_at: string | null;
 }

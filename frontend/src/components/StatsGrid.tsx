@@ -1,4 +1,5 @@
 import { useOverview } from '../api/queries';
+import { cost, tokens } from '../lib/format';
 
 export function StatsGrid() {
   const { data } = useOverview();
@@ -12,6 +13,8 @@ export function StatsGrid() {
     { key: 'PRs open', n: data.counts.pr_open, alert: false },
     { key: 'Failed', n: data.counts.failed, alert: false },
     { key: 'Repositories', n: data.repos.filter((r) => r.enabled).length, alert: false },
+    { key: 'Claude cost', n: cost(data.usage.cost_usd), alert: false },
+    { key: 'Claude tokens', n: tokens(data.usage.input_tokens + data.usage.output_tokens), alert: false },
   ];
 
   return (
