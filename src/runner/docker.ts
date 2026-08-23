@@ -36,9 +36,23 @@ function entrypoint(settings: RepoSettings): string {
     lines.push('} 2>&1 | tee /control/preflight.log', '');
   }
   lines.push(
-    'claude -p "$(cat /control/prompt.md)" \\',
-    '  --dangerously-skip-permissions \\',
-    '  --output-format stream-json --verbose',
+    '',
+    '# claude refuses --dangerously-skip-permissions as root, so hand off to a',
+    "# non-root user first, reusing the image's \"node\" user when present.",
+    'if id -u node >/dev/null 2>&1; then',
+    '  run_user=node',
+    'else',
+    '  getent group agent >/dev/null 2>&1 || groupadd agent 2>/dev/null || addgroup agent',
+    '  id -u agent >/dev/null 2>&1 || useradd -g agent -m -s /bin/sh agent 2>/dev/null || adduser -D -G agent -s /bin/sh agent',
+    '  run_user=agent',
+    'fi',
+    'chown -R "$run_user" /workspace',
+    'su -s /bin/sh "$run_user" -c \'',
+    '  git config --global --add safe.directory /workspace',
+    '  claude -p "$(cat /control/prompt.md)" \\',
+    '    --dangerously-skip-permissions \\',
+    '    --output-format stream-json --verbose',
+    "'",
   );
   return `${lines.join('\n')}\n`;
 }
