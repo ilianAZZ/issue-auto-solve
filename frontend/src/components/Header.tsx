@@ -1,19 +1,21 @@
-import { useOverview } from '../api/queries';
+import { useDispatchAction, useOverview } from '../api/queries';
 import { ago } from '../lib/format';
 import { Button } from './ui/Button';
 
 const DOT_CLASSES: Record<string, string> = {
   idle: 'bg-green',
   working: 'bg-accent shadow-[0_0_0_0_var(--color-accent)] animate-ping-once',
+  paused: 'bg-amber',
   stale: 'bg-red',
   connecting: 'bg-muted',
 };
 
 export function Header({ onOpenSetup }: { onOpenSetup: () => void }) {
   const { data } = useOverview();
+  const dispatchAction = useDispatchAction();
 
   const stale = Boolean(data?.last_tick_at && Date.now() - new Date(data.last_tick_at).getTime() > 15 * 60_000);
-  const dotState = !data ? 'connecting' : stale ? 'stale' : data.status === 'paused' ? 'stale' : data.status;
+  const dotState = !data ? 'connecting' : data.status === 'paused' ? 'paused' : stale ? 'stale' : data.status;
   const statusText = !data ? 'connecting' : stale ? 'no tick in 15m' : data.status;
   const capacityText = data ? `${data.busy}/${data.capacity} slot${data.capacity > 1 ? 's' : ''} busy` : '–';
   const tickText = data ? `last tick ${ago(data.last_tick_at)} ago` : '–';
@@ -31,6 +33,12 @@ export function Header({ onOpenSetup }: { onOpenSetup: () => void }) {
         <span>{capacityText}</span>
         <span className="opacity-40">·</span>
         <span>{tickText}</span>
+        <Button
+          onClick={() => dispatchAction.mutate(data?.dispatching ? 'pause' : 'resume')}
+          disabled={!data || dispatchAction.isPending}
+        >
+          {data?.dispatching ? '⏸ Pause' : '▶ Resume'}
+        </Button>
         <Button onClick={onOpenSetup}>Setup</Button>
       </div>
     </header>

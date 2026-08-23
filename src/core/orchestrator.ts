@@ -33,6 +33,7 @@ export class Orchestrator {
   private identityResolved = false;
   private ticking = false;
   private botLogin = 'issue-auto-solve[bot]';
+  private paused: boolean;
 
   constructor(
     private readonly env: Env,
@@ -41,6 +42,7 @@ export class Orchestrator {
     private readonly credentials: Credentials,
   ) {
     this.notify = notifier(env.DISCORD_WEBHOOK_URL, log);
+    this.paused = store.meta('dispatch_paused') === '1';
   }
 
   /** Credentials can arrive from the dashboard long after boot, so the client is built per tick. */
@@ -87,7 +89,19 @@ export class Orchestrator {
   }
 
   get dispatching(): boolean {
-    return this.config.dispatch_enabled;
+    return this.config.dispatch_enabled && !this.paused;
+  }
+
+  /** Pausing stops new claims from being picked up; runs already in flight finish on their own. */
+  pause(): void {
+    this.paused = true;
+    this.store.setMeta('dispatch_paused', '1');
+  }
+
+  resume(): void {
+    this.paused = false;
+    this.store.setMeta('dispatch_paused', '0');
+    void this.tick();
   }
 
   private recoverInterrupted(): void {
@@ -259,7 +273,7 @@ export class Orchestrator {
   }
 
   private async dispatch(): Promise<void> {
-    if (!this.config.dispatch_enabled) return;
+    if (!this.dispatching) return;
     for (const context of this.contexts.values()) {
       while (this.inflight.size < this.config.max_concurrent_runs) {
         if (this.store.countActive(context.id) >= context.settings.limits.max_concurrent_runs) break;

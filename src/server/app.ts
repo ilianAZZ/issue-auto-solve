@@ -128,6 +128,14 @@ export async function createServer(
     return { ok: true };
   });
 
+  app.post<{ Params: { action: string } }>('/api/dispatch/:action', async (request, reply) => {
+    const { action } = request.params;
+    if (action === 'pause') orchestrator.pause();
+    else if (action === 'resume') orchestrator.resume();
+    else return reply.code(400).send({ error: 'unknown action' });
+    return { ok: true, dispatching: orchestrator.dispatching };
+  });
+
   app.get('/api/health', async () => ({ ok: true }));
 
   return app;

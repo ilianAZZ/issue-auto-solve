@@ -59,6 +59,16 @@ export function useTaskAction() {
   });
 }
 
+export function useDispatchAction() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (action: 'pause' | 'resume') => api.post(`/api/dispatch/${action}`),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['overview'] });
+    },
+  });
+}
+
 export function useSetupStatus() {
   return useQuery({
     queryKey: ['setup-status'],
