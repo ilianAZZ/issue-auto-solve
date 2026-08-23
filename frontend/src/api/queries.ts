@@ -69,6 +69,16 @@ export function useDispatchAction() {
   });
 }
 
+export function useAutoUpdateAction() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (action: 'enable' | 'disable' | 'check') => api.post(`/api/auto-update/${action}`),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['overview'] });
+    },
+  });
+}
+
 export function useSetupStatus() {
   return useQuery({
     queryKey: ['setup-status'],

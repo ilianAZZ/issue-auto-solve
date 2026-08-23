@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import {
   useAddRepo,
+  useAutoUpdateAction,
   useBootstrapRepo,
+  useOverview,
   useRemoveRepo,
   useRepos,
   useSaveClaudeToken,
@@ -27,11 +29,14 @@ function Badge({ text, ok }: { text: string; ok: boolean }) {
 export function SetupOverlay({ onClose }: { onClose: () => void }) {
   const status = useSetupStatus();
   const repos = useRepos(true);
+  const overview = useOverview();
   const saveGithubToken = useSaveGithubToken();
   const saveClaudeToken = useSaveClaudeToken();
   const addRepo = useAddRepo();
   const removeRepo = useRemoveRepo();
   const bootstrapRepo = useBootstrapRepo();
+  const autoUpdateAction = useAutoUpdateAction();
+  const autoUpdate = overview.data?.auto_update;
 
   const [ghAppName, setGhAppName] = useState('issue-auto-solve');
   const [ghOrg, setGhOrg] = useState('');
@@ -223,6 +228,44 @@ export function SetupOverlay({ onClose }: { onClose: () => void }) {
             , use <b>Generate config</b>: it reads the repository, proposes a configuration and opens a pull request
             with it.
           </p>
+        </article>
+
+        <article className="mb-4 rounded-xl border border-border bg-panel p-5 shadow-[0_1px_2px_rgba(16,16,24,.06),0_8px_24px_rgba(16,16,24,.06)]">
+          <header className="mb-2.5 flex items-center gap-2.5">
+            <span className="grid h-[22px] w-[22px] place-items-center rounded-full bg-accent-soft text-xs font-bold text-accent">
+              4
+            </span>
+            <h2 className="m-0 flex-1 text-[15px]">Updates</h2>
+            <Badge text={autoUpdate?.enabled ? 'automatic' : 'manual'} ok={Boolean(autoUpdate?.enabled)} />
+          </header>
+          <p className="mt-0 mb-3 text-[13px] text-muted">
+            When on, issue-auto-solve checks the image it was started from for a newer digest and, once nothing is
+            running, recreates its own container on it — no <code className="rounded-[5px] border border-border bg-panel-2 px-1.5 py-0.5 text-xs">docker pull &amp; restart</code> by
+            hand. State lives outside the container, so an update never touches it.
+          </p>
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <Button
+              variant="primary"
+              onClick={() => autoUpdateAction.mutate(autoUpdate?.enabled ? 'disable' : 'enable')}
+              disabled={!overview.data || autoUpdateAction.isPending}
+            >
+              {autoUpdate?.enabled ? 'Disable' : 'Enable'}
+            </Button>
+            <Button onClick={() => autoUpdateAction.mutate('check')} disabled={!overview.data || autoUpdateAction.isPending}>
+              Check now
+            </Button>
+            <span className="text-[12.5px] text-muted">
+              {autoUpdate?.checking
+                ? 'checking…'
+                : autoUpdate?.update_available
+                  ? 'update available, applying on the next check'
+                  : autoUpdate?.current_image
+                    ? `up to date (${autoUpdate.current_image})`
+                    : 'not checked yet'}
+              {autoUpdate?.last_checked_at ? ` · checked ${ago(autoUpdate.last_checked_at)} ago` : ''}
+            </span>
+          </div>
+          {autoUpdate?.last_error && <p className="m-0 text-[12.5px] text-red">{autoUpdate.last_error}</p>}
         </article>
 
         <Button onClick={onClose}>Back to the dashboard</Button>

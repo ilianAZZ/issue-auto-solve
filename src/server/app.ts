@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import type { Env } from '../config/index.js';
 import type { Store, TaskRow } from '../db/store.js';
 import type { Orchestrator } from '../core/orchestrator.js';
+import type { AutoUpdater } from '../core/auto-update.js';
 import { TASK_STATES } from '../core/states.js';
 import { logger } from '../util/log.js';
 import { interpret, verifySignature } from './webhook.js';
@@ -33,6 +34,7 @@ export async function createServer(
   orchestrator: Orchestrator,
   credentials: Credentials,
   dashboardToken: string,
+  autoUpdater: AutoUpdater,
 ) {
   const app = Fastify({ logger: false, bodyLimit: 8 * 1024 * 1024 });
   const view = decorate(store);
@@ -63,6 +65,7 @@ export async function createServer(
       capacity: orchestrator.capacity,
       last_tick_at: store.meta('last_tick_at'),
       claude_token_invalid: store.meta('claude_token_invalid') === '1',
+      auto_update: autoUpdater.status(),
       counts,
       usage: store.usageSummary(),
       repos: store.repos().map((repo) => ({
@@ -144,6 +147,15 @@ export async function createServer(
     else if (action === 'resume') orchestrator.resume();
     else return reply.code(400).send({ error: 'unknown action' });
     return { ok: true, dispatching: orchestrator.dispatching };
+  });
+
+  app.post<{ Params: { action: string } }>('/api/auto-update/:action', async (request, reply) => {
+    const { action } = request.params;
+    if (action === 'enable') autoUpdater.setEnabled(true);
+    else if (action === 'disable') autoUpdater.setEnabled(false);
+    else if (action === 'check') void autoUpdater.check();
+    else return reply.code(400).send({ error: 'unknown action' });
+    return { ok: true, auto_update: autoUpdater.status() };
   });
 
   app.get('/api/health', async () => ({ ok: true }));
