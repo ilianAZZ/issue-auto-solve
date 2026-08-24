@@ -203,7 +203,7 @@ export class Orchestrator {
         if (access.installationId) this.store.setInstallation(row.id, access.installationId);
         const configPath = overrides.config_path ?? this.config.defaults.config_path ?? '.issue-auto-solve.yml';
         const file = await fetchRepoFile(access, configPath);
-        const settings = resolveRepoSettings(this.config, overrides, file);
+        const settings = resolveRepoSettings(this.config, overrides, file, row.full_name);
         this.contexts.set(row.full_name, { id: row.id, fullName: row.full_name, settings });
         this.store.setRepoError(row.id, null);
         log.info(`watching ${row.full_name}`, { base: settings.base_branch, configured: Boolean(file) });
