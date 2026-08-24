@@ -5,6 +5,7 @@ export type TaskState =
   | 'waiting_human'
   | 'needs_approval'
   | 'pr_open'
+  | 'merged'
   | 'failed'
   | 'skipped';
 
@@ -15,6 +16,7 @@ export interface OverviewCounts {
   waiting_human: number;
   needs_approval: number;
   pr_open: number;
+  merged: number;
   failed: number;
   skipped: number;
 }

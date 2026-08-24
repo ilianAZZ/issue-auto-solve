@@ -171,6 +171,7 @@ export class Orchestrator {
       await this.loadRepositories();
       await this.resumeAnswered();
       this.resumeRetries();
+      await this.syncPullRequests();
       await this.syncIssues();
       await this.dispatch();
       this.store.setMeta('last_tick_at', now());
@@ -233,6 +234,41 @@ export class Orchestrator {
       const label = context ? context.fullName : `repo ${task.repo_id}`;
       this.store.transition(task.id, 'discovered', {}, 'usage limit delay passed, retrying');
       log.info(`#${task.number} on ${label} is retrying after the usage limit delay`);
+    }
+  }
+
+  /**
+   * A pull request is merged (or closed, or reopened) on GitHub itself, never through this
+   * app, so a task that stopped at pr_open — or was marked skipped/failed after a branch
+   * was pushed — can silently drift out of date. Anything that once had a branch is
+   * re-checked against GitHub so the dashboard reflects what actually happened instead of
+   * freezing at whatever the last run concluded.
+   */
+  private async syncPullRequests(): Promise<void> {
+    const candidates = (['pr_open', 'skipped', 'failed'] as const).flatMap((state) => this.store.byState(state));
+    for (const task of candidates) {
+      if (!task.branch) continue;
+      const context = this.contextFor(task);
+      if (!context) continue;
+      try {
+        const access = await this.gh().access(context.fullName);
+        const work = await existingWork(access, task.number, task.branch);
+        if (work.pullRequestMerged && task.state !== 'merged') {
+          this.store.transition(task.id, 'merged', { pr_url: work.pullRequest, branch: task.branch }, 'pull request merged');
+          log.info(`#${task.number} on ${context.fullName} merged -> ${work.pullRequest}`);
+          await this.notify(`🎉 ${context.fullName}#${task.number} merged → ${work.pullRequest}`);
+        } else if (work.pullRequestOpen && task.state !== 'pr_open') {
+          this.store.transition(
+            task.id,
+            'pr_open',
+            { pr_url: work.pullRequest, branch: task.branch },
+            'pull request found open on GitHub',
+          );
+          log.info(`#${task.number} on ${context.fullName} actually has an open pull request -> ${work.pullRequest}`);
+        }
+      } catch (error) {
+        log.error(`pull request check failed for ${context.fullName}#${task.number}`, { error: String(error) });
+      }
     }
   }
 
@@ -400,8 +436,22 @@ export class Orchestrator {
     const branch = render(context.settings.branch_pattern, { number: task.number });
     const access = await this.gh().access(context.fullName);
     const work = await existingWork(access, task.number, branch);
+    if (work.pullRequestMerged) {
+      this.store.transition(
+        task.id,
+        'merged',
+        { pr_url: work.pullRequest, branch, reason: 'a pull request already exists and was merged' },
+        'a pull request for this issue was already merged',
+      );
+      return null;
+    }
     if (work.pullRequest) {
-      this.store.transition(task.id, 'skipped', { pr_url: work.pullRequest, reason: 'a pull request already exists' });
+      this.store.transition(
+        task.id,
+        'pr_open',
+        { pr_url: work.pullRequest, branch, reason: 'a pull request already exists' },
+        'a pull request already exists',
+      );
       return null;
     }
     if (work.branch) {
@@ -487,6 +537,14 @@ export class Orchestrator {
     const access = await this.gh().access(context.fullName);
     const run = this.store.run(runId);
     const work = await existingWork(access, task.number, branch);
+
+    if (work.pullRequestMerged) {
+      this.store.finishRun(runId, 'succeeded', exitCode, null, usage);
+      this.store.transition(task.id, 'merged', { pr_url: work.pullRequest, branch }, 'pull request opened and merged');
+      discardWorkspace(workspacePath);
+      await this.notify(`🎉 ${context.fullName}#${task.number} → ${work.pullRequest} (merged)`);
+      return;
+    }
 
     if (work.pullRequest) {
       this.store.finishRun(runId, 'succeeded', exitCode, null, usage);
