@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   reason             TEXT,
   waiting_comment_id INTEGER,
   waiting_since      TEXT,
+  retry_at           TEXT,
   run_count          INTEGER NOT NULL DEFAULT 0,
   issue_updated_at   TEXT,
   entered_state_at   TEXT NOT NULL,
