@@ -8,6 +8,7 @@ export const STATES: TaskState[] = [
   'needs_approval',
   'discovered',
   'pr_open',
+  'merged',
   'failed',
   'skipped',
 ];
@@ -19,6 +20,7 @@ export const LABELS: Record<TaskState, string> = {
   discovered: 'Queued',
   needs_approval: 'Needs approval',
   pr_open: 'PR open',
+  merged: 'Merged',
   failed: 'Failed',
   skipped: 'Skipped',
 };
@@ -30,6 +32,7 @@ export const PILL_CLASSES: Record<TaskState, string> = {
   waiting_human: 'bg-amber-soft text-amber',
   needs_approval: 'bg-blue-soft text-blue',
   pr_open: 'bg-green-soft text-green',
+  merged: 'bg-green-soft text-green',
   failed: 'bg-red-soft text-red',
   skipped: 'bg-panel-2 text-muted border border-border',
 };

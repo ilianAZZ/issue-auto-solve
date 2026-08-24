@@ -98,7 +98,7 @@ export async function existingWork(
   access: RepoAccess,
   number: number,
   branch: string,
-): Promise<{ branch: boolean; pullRequest: string | null }> {
+): Promise<{ branch: boolean; pullRequest: string | null; pullRequestOpen: boolean; pullRequestMerged: boolean }> {
   const branchExists = await access.octokit.repos
     .getBranch({ owner: access.owner, repo: access.name, branch })
     .then(() => true)
@@ -111,7 +111,15 @@ export async function existingWork(
     head: `${access.owner}:${branch}`,
     per_page: 5,
   });
-  return { branch: branchExists, pullRequest: search.data[0]?.html_url ?? null };
+  // Sorted newest-first by default, so the head of the list is the pull request that
+  // actually matters even if an older, already-closed one shares the same branch name.
+  const pr = search.data[0] ?? null;
+  return {
+    branch: branchExists,
+    pullRequest: pr?.html_url ?? null,
+    pullRequestOpen: pr?.state === 'open',
+    pullRequestMerged: Boolean(pr?.merged_at),
+  };
 }
 
 export async function comment(access: RepoAccess, number: number, body: string): Promise<number> {

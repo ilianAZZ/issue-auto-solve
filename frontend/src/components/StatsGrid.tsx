@@ -12,6 +12,7 @@ const CARD_STATES: Partial<Record<string, TaskState[]>> = {
   'Needs approval': ['needs_approval'],
   Queued: ['discovered'],
   'PRs open': ['pr_open'],
+  Merged: ['merged'],
   Failed: ['failed'],
 };
 
@@ -25,6 +26,7 @@ export function StatsGrid({ filters, onChange }: { filters: TaskFilters; onChang
     { key: 'Needs approval', n: data.counts.needs_approval, alert: data.counts.needs_approval > 0 },
     { key: 'Queued', n: data.counts.discovered, alert: false },
     { key: 'PRs open', n: data.counts.pr_open, alert: false },
+    { key: 'Merged', n: data.counts.merged, alert: false },
     { key: 'Failed', n: data.counts.failed, alert: false },
     { key: 'Repositories', n: data.repos.filter((r) => r.enabled).length, alert: false },
     { key: 'Claude cost', n: cost(data.usage.cost_usd), alert: false },
