@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
-import type { Overview, RepoSetup, SetupStatus, Task, TaskDetail, TaskFilters } from '../types';
+import type { Overview, RepoConditions, RepoSetup, RepoSettingsInput, SetupStatus, Task, TaskDetail, TaskFilters } from '../types';
 
 const POLL_MS = 4000;
 
@@ -115,7 +115,21 @@ export function useSaveClaudeToken() {
 }
 
 export function useAddRepo() {
-  return useSetupMutation((repo: string) => api.post('/api/repos', { repo }));
+  return useSetupMutation(({ repo, settings }: { repo: string; settings: RepoSettingsInput }) =>
+    api.post('/api/repos', { repo, settings }),
+  );
+}
+
+// Fetched on demand while the "add repository" panel is open — a valid "owner/name" is
+// enough, the repository does not need to be watched yet.
+export function useRepoConditions(fullName: string) {
+  const [owner, name] = fullName.split('/');
+  return useQuery({
+    queryKey: ['repo-conditions', fullName],
+    queryFn: () => api.get<RepoConditions>(`/api/repos/${owner}/${name}/conditions`, { silent: true }),
+    enabled: Boolean(owner && name),
+    retry: false,
+  });
 }
 
 export function useRemoveRepo() {

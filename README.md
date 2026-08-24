@@ -116,6 +116,9 @@ selection:
   require_label: approved
   trusted_associations: [OWNER, MEMBER, COLLABORATOR]
   whitelist_users: [some-trusted-external]
+  check_tags: true
+  whitelist_tags: [bug, chore]
+  blacklist_tags: [needs-design]
 ```
 
 Issues without the label sit in `needs_approval` — visible in the dashboard, never
@@ -125,14 +128,22 @@ narrow it further by who opened the issue — either one is enough to pass, sinc
 they're a single whitelist expressed as groups or as individual logins. Remove the label
 and the issue goes back to waiting for approval.
 
+`check_tags` adds an independent gate on *what* the issue is labelled, on top of *who*
+opened it: with it on, `whitelist_tags` (non-empty) requires at least one matching label
+to proceed, and `blacklist_tags` skips the issue outright, the same way a blacklisted
+user or an excluded label does.
+
 `GET /api/repos/:owner/:name/conditions` returns the repository's real labels,
 collaborators, and the fixed set of `trusted_associations` values, so these conditions
-can be filled in from what actually exists instead of guessed at.
+can be filled in from what actually exists instead of guessed at — the dashboard's **Add
+repository** panel uses it to build this configuration up front, before a repository is
+watched at all.
 
 ## Labels and users are the remote control
 
-- an excluded label (`labels.exclude`) or a blacklisted user (`selection.blacklist_users`)
-  takes an issue out of the queue outright, removing it puts it back;
+- an excluded label (`labels.exclude`), a blacklisted user (`selection.blacklist_users`)
+  or, with `check_tags` on, a blacklisted tag (`selection.blacklist_tags`) takes an issue
+  out of the queue outright, removing it puts it back;
 - the waiting label parks an issue — including issues already carrying it when you plug
   a repository in, which are adopted rather than re-run;
 - removing the waiting label by hand requeues the issue immediately.

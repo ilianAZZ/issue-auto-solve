@@ -11,8 +11,10 @@ import {
   useSetupStatus,
 } from '../api/queries';
 import { ago } from '../lib/format';
+import type { RepoSettingsForm } from '../types';
 import { Button } from './ui/Button';
 import { BootstrapModal } from './BootstrapModal';
+import { AddRepoModal } from './AddRepoModal';
 
 function Badge({ text, ok }: { text: string; ok: boolean }) {
   return (
@@ -42,7 +44,7 @@ export function SetupOverlay({ onClose }: { onClose: () => void }) {
   const [ghOrg, setGhOrg] = useState('');
   const [ghToken, setGhToken] = useState('');
   const [clToken, setClToken] = useState('');
-  const [repoInput, setRepoInput] = useState('');
+  const [addingRepo, setAddingRepo] = useState(false);
   const [bootstrapTarget, setBootstrapTarget] = useState<string | null>(null);
 
   const githubLocked = status.data?.locked.github ?? false;
@@ -63,10 +65,9 @@ export function SetupOverlay({ onClose }: { onClose: () => void }) {
     }
   }
 
-  function addRepoNow() {
-    const repo = repoInput.trim();
-    if (!repo) return;
-    addRepo.mutate(repo, { onSuccess: () => setRepoInput('') });
+  function addRepoNow(repo: string, form: RepoSettingsForm) {
+    const settings = { ...form, prompt: { ...form.prompt, file: form.prompt.file.trim() || null } };
+    addRepo.mutate({ repo, settings }, { onSuccess: () => setAddingRepo(false) });
   }
 
   return (
@@ -178,16 +179,9 @@ export function SetupOverlay({ onClose }: { onClose: () => void }) {
             <h2 className="m-0 flex-1 text-[15px]">Repositories</h2>
             <Badge text={repos.data?.length ? `${repos.data.length} watched` : 'none'} ok={Boolean(repos.data?.length)} />
           </header>
-          <div className="mb-2 flex flex-wrap gap-2">
-            <input
-              value={repoInput}
-              onChange={(e) => setRepoInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && addRepoNow()}
-              placeholder="owner/name"
-              className="min-w-[180px] flex-1 rounded-lg border border-border bg-panel-2 p-2 text-[13px] text-text"
-            />
-            <Button variant="primary" onClick={addRepoNow} disabled={addRepo.isPending}>
-              Add
+          <div className="mb-2">
+            <Button variant="primary" onClick={() => setAddingRepo(true)}>
+              Add repository
             </Button>
           </div>
           <ul className="my-2 mb-3 list-none p-0">
@@ -221,7 +215,8 @@ export function SetupOverlay({ onClose }: { onClose: () => void }) {
             )}
           </ul>
           <p className="text-[12.5px] text-muted">
-            Adding a repository is enough to start watching it. To let the agent write its own{' '}
+            Adding a repository walks through who can trigger the agent and which tags gate it — that panel is
+            mandatory, so nothing is watched on guessed defaults. To let the agent write its own{' '}
             <code className="rounded-[5px] border border-border bg-panel-2 px-1.5 py-0.5 text-xs">
               .issue-auto-solve.yml
             </code>
@@ -281,6 +276,10 @@ export function SetupOverlay({ onClose }: { onClose: () => void }) {
             setBootstrapTarget(null);
           }}
         />
+      )}
+
+      {addingRepo && (
+        <AddRepoModal onCancel={() => setAddingRepo(false)} onConfirm={addRepoNow} pending={addRepo.isPending} />
       )}
     </div>
   );

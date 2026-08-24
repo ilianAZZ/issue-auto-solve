@@ -120,6 +120,36 @@ export interface RepoSetup {
   bootstrap: BootstrapInfo | null;
 }
 
+export interface RepoConditions {
+  labels: string[];
+  users: string[];
+  groups: string[];
+}
+
+export interface RepoSelectionSettings {
+  trusted_associations: string[];
+  whitelist_users: string[];
+  blacklist_users: string[];
+  check_tags: boolean;
+  whitelist_tags: string[];
+  blacklist_tags: string[];
+}
+
+export interface RepoPromptSettingsForm {
+  file: string;
+  variables: Record<string, string>;
+}
+
+export interface RepoSettingsForm {
+  selection: RepoSelectionSettings;
+  prompt: RepoPromptSettingsForm;
+}
+
+export interface RepoSettingsInput {
+  selection: RepoSelectionSettings;
+  prompt: { file: string | null; variables: Record<string, string> };
+}
+
 export interface SetupStatus {
   github: { mode: string; slug: string | null } | null;
   claude: boolean;
