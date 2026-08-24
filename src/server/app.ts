@@ -50,6 +50,13 @@ export async function createServer(
     }
   });
 
+  // `logger: false` above keeps output on our own format, but it also means an uncaught
+  // route error would otherwise only ever reach the browser — never `docker logs`.
+  app.setErrorHandler((error: Error, request, reply) => {
+    log.error(`${request.method} ${request.url} -> ${error.message}`, { stack: error.stack });
+    reply.send(error);
+  });
+
   registerAuth(app, dashboardToken, env.PUBLIC_URL.startsWith('https://'));
   await app.register(fastifyStatic, { root: webRoot, prefix: '/' });
   registerSetup(app, env, store, credentials, orchestrator);
