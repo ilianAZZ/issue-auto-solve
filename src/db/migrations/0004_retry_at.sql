@@ -1,0 +1,1 @@
+ALTER TABLE tasks ADD COLUMN retry_at TEXT;
