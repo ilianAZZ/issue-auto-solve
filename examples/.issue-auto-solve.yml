@@ -17,6 +17,9 @@ selection:
   trusted_associations: [OWNER, MEMBER, COLLABORATOR]
   whitelist_users: []              # specific logins trusted even without a matching association
   blacklist_users: []              # logins whose issues are skipped outright, like an excluded label
+  check_tags: false                # gate issues by label in addition to who opened them
+  whitelist_tags: []               # issue must carry at least one of these labels (only when check_tags is on)
+  blacklist_tags: []               # issues carrying any of these labels are skipped outright (only when check_tags is on)
 
 runtime:
   image: ghcr.io/acme/breem-agent:latest

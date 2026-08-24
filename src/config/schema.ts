@@ -22,6 +22,9 @@ export const repoSettings = z.object({
     trusted_associations: z.array(z.string()),
     whitelist_users: z.array(z.string()),
     blacklist_users: z.array(z.string()),
+    check_tags: z.boolean(),
+    whitelist_tags: z.array(z.string()),
+    blacklist_tags: z.array(z.string()),
   }),
   limits: z.object({
     max_concurrent_runs: z.number().int().positive(),
@@ -46,6 +49,9 @@ export type RepoSettings = z.infer<typeof repoSettings>;
 export type Check = z.infer<typeof check>;
 
 const deepPartial = repoSettings.deepPartial();
+
+export const repoSettingsPartial = deepPartial;
+export type RepoSettingsInput = z.infer<typeof deepPartial>;
 
 export const globalConfig = z.object({
   poll_interval_seconds: z.number().int().positive().default(120),

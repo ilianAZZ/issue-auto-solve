@@ -263,13 +263,19 @@ export class Orchestrator {
    * maintainer approves it. Applying a label already requires triage permission, which
    * makes the label itself the gate; trusted_associations and whitelist_users narrow it
    * further by who opened the issue — either one is enough to pass, since together they
-   * form a single whitelist expressed as groups or as individual logins.
+   * form a single whitelist expressed as groups or as individual logins. When check_tags
+   * is on and whitelist_tags is non-empty, the issue must also carry one of those tags —
+   * an independent gate on top of who opened it.
    */
   private approvalGate(context: RepoContext, labels: string[], author: string, authorAssociation: string): string | null {
     const { require_label: required, trusted_associations: trusted, whitelist_users: whitelisted } = context.settings.selection;
+    const { check_tags: checkTags, whitelist_tags: whitelistedTags } = context.settings.selection;
     if (required && !labels.includes(required)) return `waiting for a maintainer to add the "${required}" label`;
     if ((trusted.length || whitelisted.length) && !trusted.includes(authorAssociation) && !whitelisted.includes(author)) {
       return `opened by ${author} (${authorAssociation}), not on the trusted list`;
+    }
+    if (checkTags && whitelistedTags.length && !labels.some((label) => whitelistedTags.includes(label))) {
+      return `not tagged with one of the allowed tags (${whitelistedTags.join(', ')})`;
     }
     return null;
   }
@@ -287,22 +293,30 @@ export class Orchestrator {
     issue: { labels: string[]; author: string; authorAssociation: string },
   ): Promise<void> {
     const labels = issue.labels;
+    const { check_tags: checkTags, blacklist_tags: blacklistedTags } = context.settings.selection;
     const excludedLabel = labels.find((label) => context.settings.labels.exclude.includes(label)) ?? null;
     const blacklistedUser = context.settings.selection.blacklist_users.includes(issue.author) ? issue.author : null;
-    const excluded = Boolean(excludedLabel || blacklistedUser);
+    const blacklistedTag = checkTags ? (labels.find((label) => blacklistedTags.includes(label)) ?? null) : null;
+    const excluded = Boolean(excludedLabel || blacklistedUser || blacklistedTag);
     const waitingLabel = context.settings.labels.waiting;
     const parked = Boolean(waitingLabel) && labels.includes(waitingLabel);
     const gate = this.approvalGate(context, labels, issue.author, issue.authorAssociation);
 
     if (task.state === 'discovered' && excluded) {
-      const reason = excludedLabel ? `excluded by label "${excludedLabel}"` : `blacklisted user "${blacklistedUser}"`;
+      const reason = excludedLabel
+        ? `excluded by label "${excludedLabel}"`
+        : blacklistedUser
+          ? `blacklisted user "${blacklistedUser}"`
+          : `blacklisted tag "${blacklistedTag}"`;
       this.store.transition(task.id, 'skipped', { reason });
       return;
     }
     if (
       task.state === 'skipped' &&
       !excluded &&
-      ((task.reason ?? '').startsWith('excluded by label') || (task.reason ?? '').startsWith('blacklisted user'))
+      ((task.reason ?? '').startsWith('excluded by label') ||
+        (task.reason ?? '').startsWith('blacklisted user') ||
+        (task.reason ?? '').startsWith('blacklisted tag'))
     ) {
       this.store.transition(task.id, 'discovered', {}, 'exclusion removed');
       return;

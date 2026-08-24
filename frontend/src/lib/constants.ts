@@ -35,3 +35,17 @@ export const PILL_CLASSES: Record<TaskState, string> = {
 };
 
 export const DEFAULT_STATE_FILTERS: TaskState[] = ['running', 'waiting_human', 'discovered', 'failed'];
+
+// GitHub's fixed author_association values, mirrored from the server so the "trusted
+// groups" picker still renders before /conditions has resolved (or if it never does,
+// e.g. a repository the GitHub App isn't installed on yet).
+export const AUTHOR_ASSOCIATIONS = [
+  'OWNER',
+  'MEMBER',
+  'COLLABORATOR',
+  'CONTRIBUTOR',
+  'FIRST_TIME_CONTRIBUTOR',
+  'FIRST_TIMER',
+  'MANNEQUIN',
+  'NONE',
+];

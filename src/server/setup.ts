@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { randomBytes } from 'node:crypto';
 import { Octokit } from '@octokit/rest';
-import type { Env } from '../config/index.js';
+import { repoSettingsPartial, type Env } from '../config/index.js';
 import type { Credentials } from '../core/credentials.js';
 import type { Orchestrator } from '../core/orchestrator.js';
 import type { Store } from '../db/store.js';
@@ -131,10 +131,15 @@ export function registerSetup(
     })),
   );
 
-  app.post<{ Body: { repo: string } }>('/api/repos', async (request, reply) => {
+  app.post<{ Body: { repo: string; settings?: unknown } }>('/api/repos', async (request, reply) => {
     const full = request.body?.repo?.trim();
     if (!full || !/^[^/\s]+\/[^/\s]+$/.test(full)) return reply.code(400).send({ error: 'expected "owner/name"' });
-    store.upsertRepo(full, true, {});
+    const parsed = repoSettingsPartial.safeParse(request.body?.settings ?? {});
+    if (!parsed.success) {
+      const details = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`);
+      return reply.code(400).send({ error: `invalid settings: ${details.join(', ')}` });
+    }
+    store.upsertRepo(full, true, parsed.data);
     orchestrator.reload();
     return { ok: true };
   });
@@ -156,11 +161,13 @@ export function registerSetup(
   );
 
   // Feeds the "selection" conditions in .issue-auto-solve.yml (require_label,
-  // trusted_associations, whitelist_users, blacklist_users): real labels and
-  // collaborators for this repository, plus GitHub's fixed association groups.
+  // trusted_associations, whitelist_users, blacklist_users, whitelist_tags,
+  // blacklist_tags): real labels and collaborators for this repository, plus GitHub's
+  // fixed association groups. Deliberately not gated on the repository already being
+  // watched — the dashboard calls this while a repository is still being added, so its
+  // config panel can be filled from what actually exists instead of guessed at.
   app.get<{ Params: { owner: string; name: string } }>('/api/repos/:owner/:name/conditions', async (request, reply) => {
     const full = `${request.params.owner}/${request.params.name}`;
-    if (!store.repoByName(full)) return reply.code(404).send({ error: 'unknown repository' });
     try {
       const access = await orchestrator.repoAccess(full);
       const [labels, collaborators] = await Promise.all([
