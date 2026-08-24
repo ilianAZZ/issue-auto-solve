@@ -274,6 +274,7 @@ export function SetupOverlay({ onClose }: { onClose: () => void }) {
       {bootstrapTarget && (
         <BootstrapModal
           repo={bootstrapTarget}
+          initialInstructions={repos.data?.find((repo) => repo.full_name === bootstrapTarget)?.bootstrap?.instructions ?? ''}
           onCancel={() => setBootstrapTarget(null)}
           onConfirm={(instructions) => {
             bootstrapRepo.mutate({ fullName: bootstrapTarget, instructions });

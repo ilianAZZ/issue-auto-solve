@@ -108,6 +108,7 @@ export interface TaskDetail {
 export interface BootstrapInfo {
   status: string;
   result: string | null;
+  instructions: string;
 }
 
 export interface RepoSetup {

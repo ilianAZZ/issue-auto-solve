@@ -3,14 +3,16 @@ import { Button } from './ui/Button';
 
 export function BootstrapModal({
   repo,
+  initialInstructions,
   onCancel,
   onConfirm,
 }: {
   repo: string;
+  initialInstructions: string;
   onCancel: () => void;
   onConfirm: (instructions: string) => void;
 }) {
-  const [instructions, setInstructions] = useState('');
+  const [instructions, setInstructions] = useState(initialInstructions);
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={onCancel}>
