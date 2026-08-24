@@ -1,0 +1,43 @@
+# Repository-specific overrides for issue-auto-solve's own backlog. Anything left out
+# falls back to config/issue-auto-solve.yml. See examples/.issue-auto-solve.yml for
+# every available key.
+version: 1
+
+# ci.yml runs on push to main and on every PR; GitHub reports main as the default
+# branch, and that's also what the owner asked pull requests to target.
+base_branch: main
+
+labels:
+  # The only non-default labels that mean "not actionable" on this repo today; there is
+  # no security/legal/design label yet, so nothing else is excluded.
+  exclude: [wontfix, duplicate, invalid]
+
+selection:
+  # Private repository (single owner) — no public triage surface to protect, so no
+  # approval label is required before an issue is picked up.
+  require_label: null
+
+# runtime is intentionally left out: the global default (node:24-slim, with git and
+# `claude` installed via setup) already builds and tests this project — no native
+# dependencies, no Docker daemon needed for the test suite.
+
+preflight:
+  # Mirrors ci.yml. Frontend deps are installed by `npm run build` itself
+  # (build:web -> npm --prefix frontend ci), so no separate frontend preflight step.
+  - npm ci
+
+checks:
+  - name: typecheck
+    run: npm run typecheck
+  - name: build
+    # Also builds the frontend and copies src/db/schema.sql into dist/, same as CI.
+    run: npm run build
+  - name: boot
+    # Same smoke test ci.yml runs: boots with zero credentials and must still answer
+    # /api/health, and must reject /api/tasks without a dashboard token.
+    run: |
+      STATE_DIR=/tmp/state WORKSPACE_DIR=/tmp/ws LOG_DIR=/tmp/logs \
+      CONFIG_FILE=/tmp/does-not-exist.yml PORT=8420 node dist/index.js &
+      for i in $(seq 1 20); do curl -sf localhost:8420/api/health && break || sleep 1; done
+      curl -sf localhost:8420/api/health | grep -q '"ok":true'
+      test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8420/api/tasks)" = 401
