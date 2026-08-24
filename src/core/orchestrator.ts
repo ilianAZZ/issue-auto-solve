@@ -21,13 +21,19 @@ const here = dirname(fileURLToPath(import.meta.url));
 // Claude Code prints this and exits before doing anything else, so it always shows up
 // near the end of a short log — a tail read is enough and keeps this cheap on big logs.
 const CLAUDE_AUTH_ERROR_MARKER = 'OAuth access token is invalid';
+// Printed when the account's Claude usage limit is hit, followed by the unix seconds the
+// limit resets at, e.g. "Claude AI usage limit reached|1735056000".
+const CLAUDE_USAGE_LIMIT_PATTERN = /Claude AI usage limit reached\|(\d+)/i;
+// A run that hits the limit without a parseable reset time still shouldn't be retried
+// immediately — fall back to a fixed cooldown.
+const DEFAULT_USAGE_LIMIT_RETRY_MS = 30 * 60_000;
 const LOG_TAIL_BYTES = 65_536;
 
-function logTailContains(logPath: string, marker: string): boolean {
-  if (!existsSync(logPath)) return false;
+function readLogTail(logPath: string): string | null {
+  if (!existsSync(logPath)) return null;
   const size = statSync(logPath).size;
   const length = Math.min(size, LOG_TAIL_BYTES);
-  if (length === 0) return false;
+  if (length === 0) return null;
   const buffer = Buffer.alloc(length);
   const fd = openSync(logPath, 'r');
   try {
@@ -35,7 +41,22 @@ function logTailContains(logPath: string, marker: string): boolean {
   } finally {
     closeSync(fd);
   }
-  return buffer.toString('utf8').includes(marker);
+  return buffer.toString('utf8');
+}
+
+function logTailContains(logPath: string, marker: string): boolean {
+  return (readLogTail(logPath) ?? '').includes(marker);
+}
+
+/** Null unless the run's log shows the Claude usage limit was hit, in which case it's when to retry. */
+function usageLimitRetryAt(logPath: string): Date | null {
+  const tail = readLogTail(logPath);
+  if (!tail) return null;
+  const match = tail.match(CLAUDE_USAGE_LIMIT_PATTERN);
+  if (!match) return null;
+  const resetEpochSeconds = Number(match[1]);
+  if (!Number.isFinite(resetEpochSeconds)) return new Date(Date.now() + DEFAULT_USAGE_LIMIT_RETRY_MS);
+  return new Date(resetEpochSeconds * 1000);
 }
 
 interface RepoContext {
@@ -149,6 +170,7 @@ export class Orchestrator {
       }
       await this.loadRepositories();
       await this.resumeAnswered();
+      this.resumeRetries();
       await this.syncIssues();
       await this.dispatch();
       this.store.setMeta('last_tick_at', now());
@@ -201,6 +223,16 @@ export class Orchestrator {
       this.store.transition(task.id, 'discovered', {}, `answered by ${answer.author}`);
       log.info(`#${task.number} on ${context.fullName} was answered, back in the queue`);
       await this.notify(`💬 ${context.fullName}#${task.number} answered by ${answer.author}, picking it back up`);
+    }
+  }
+
+  /** Tasks parked in `failed` after hitting the Claude usage limit, back in the queue once their delay has passed. */
+  private resumeRetries(): void {
+    for (const task of this.store.dueForRetry()) {
+      const context = this.contextFor(task);
+      const label = context ? context.fullName : `repo ${task.repo_id}`;
+      this.store.transition(task.id, 'discovered', {}, 'usage limit delay passed, retrying');
+      log.info(`#${task.number} on ${label} is retrying after the usage limit delay`);
     }
   }
 
@@ -416,7 +448,7 @@ export class Orchestrator {
       }
 
       const usage = parseRunUsage(logPath);
-      await this.settle(context, task, run.id, result.status, result.exitCode, branch, workspace.path, usage);
+      await this.settle(context, task, run.id, result.status, result.exitCode, branch, workspace.path, usage, logPath);
     } catch (error) {
       this.store.finishRun(run.id, 'failed', null, String(error));
       this.store.transition(task.id, 'failed', { reason: String(error) }, 'run crashed');
@@ -436,6 +468,7 @@ export class Orchestrator {
     branch: string,
     workspacePath: string,
     usage: RunUsage | null,
+    logPath: string,
   ): Promise<void> {
     const access = await this.gh().access(context.fullName);
     const run = this.store.run(runId);
@@ -465,9 +498,14 @@ export class Orchestrator {
       return;
     }
 
-    const reason = status === 'timeout' ? `timed out after ${context.settings.limits.timeout_minutes}m` : `agent exited with code ${exitCode ?? '?'} without opening a pull request`;
+    const retryAt = status !== 'timeout' ? usageLimitRetryAt(logPath) : null;
+    const reason = status === 'timeout'
+      ? `timed out after ${context.settings.limits.timeout_minutes}m`
+      : retryAt
+        ? `Claude usage limit reached, retrying at ${retryAt.toISOString()}`
+        : `agent exited with code ${exitCode ?? '?'} without opening a pull request`;
     this.store.finishRun(runId, status === 'timeout' ? 'timeout' : 'failed', exitCode, reason, usage);
-    this.store.transition(task.id, 'failed', { branch, reason }, reason);
+    this.store.transition(task.id, 'failed', { branch, reason, retry_at: retryAt?.toISOString() ?? null }, reason);
     await this.notify(`⚠️ ${context.fullName}#${task.number}: ${reason}`);
   }
 

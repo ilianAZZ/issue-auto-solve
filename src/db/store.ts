@@ -27,6 +27,7 @@ export interface TaskRow {
   reason: string | null;
   waiting_comment_id: number | null;
   waiting_since: string | null;
+  retry_at: string | null;
   run_count: number;
   issue_updated_at: string | null;
   entered_state_at: string;
@@ -174,7 +175,9 @@ export class Store {
   transition(
     taskId: number,
     to: TaskState,
-    patch: Partial<Pick<TaskRow, 'phase' | 'branch' | 'pr_url' | 'reason' | 'waiting_comment_id' | 'waiting_since'>> = {},
+    patch: Partial<
+      Pick<TaskRow, 'phase' | 'branch' | 'pr_url' | 'reason' | 'waiting_comment_id' | 'waiting_since' | 'retry_at'>
+    > = {},
     message = '',
   ): TaskRow {
     const task = this.task(taskId);
@@ -184,7 +187,7 @@ export class Store {
     this.db
       .prepare(
         `UPDATE tasks SET state = ?, phase = ?, branch = ?, pr_url = ?, reason = ?,
-           waiting_comment_id = ?, waiting_since = ?,
+           waiting_comment_id = ?, waiting_since = ?, retry_at = ?,
            entered_state_at = CASE WHEN state = ? THEN entered_state_at ELSE ? END,
            updated_at = ?
          WHERE id = ?`,
@@ -197,6 +200,7 @@ export class Store {
         patch.reason ?? null,
         patch.waiting_comment_id ?? (to === 'waiting_human' ? task.waiting_comment_id : null),
         patch.waiting_since ?? (to === 'waiting_human' ? task.waiting_since ?? stamp : null),
+        patch.retry_at ?? null,
         to,
         stamp,
         stamp,
@@ -230,6 +234,13 @@ export class Store {
 
   byState(state: TaskState): TaskRow[] {
     return this.db.prepare('SELECT * FROM tasks WHERE state = ? ORDER BY entered_state_at ASC').all(state) as unknown as TaskRow[];
+  }
+
+  /** Failed tasks parked with a `retry_at` (e.g. hit the Claude usage limit) whose delay has passed. */
+  dueForRetry(): TaskRow[] {
+    return this.db
+      .prepare(`SELECT * FROM tasks WHERE state = 'failed' AND retry_at IS NOT NULL AND retry_at <= ? ORDER BY retry_at ASC`)
+      .all(now()) as unknown as TaskRow[];
   }
 
   countActive(repoId?: number): number {
