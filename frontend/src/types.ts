@@ -51,6 +51,7 @@ export interface AutoUpdateStatus {
 
 export interface Overview {
   status: 'paused' | 'working' | 'idle';
+  version: string;
   dispatching: boolean;
   busy: number;
   capacity: number;

@@ -11,6 +11,7 @@ import { SetupOverlay } from './components/SetupOverlay';
 import { LoginScreen } from './components/LoginScreen';
 import { ErrorBanner } from './components/ErrorBanner';
 import { ClaudeTokenAlert } from './components/ClaudeTokenAlert';
+import { Footer } from './components/Footer';
 import { DEFAULT_STATE_FILTERS } from './lib/constants';
 import type { TaskFilters } from './types';
 
@@ -52,6 +53,7 @@ export default function App() {
         <FilterBar filters={filters} onChange={setFilters} />
         <TaskTable filters={filters} onOpenTask={setOpenTaskId} />
       </main>
+      <Footer />
       {openTaskId != null && <TaskDrawer taskId={openTaskId} onClose={() => setOpenTaskId(null)} />}
       {setupOpen && <SetupOverlay onClose={() => setSetupOpen(false)} />}
     </>

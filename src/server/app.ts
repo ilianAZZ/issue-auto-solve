@@ -9,6 +9,7 @@ import type { Orchestrator } from '../core/orchestrator.js';
 import type { AutoUpdater } from '../core/auto-update.js';
 import { TASK_STATES } from '../core/states.js';
 import { logger } from '../util/log.js';
+import { appVersion } from '../util/version.js';
 import { interpret, verifySignature } from './webhook.js';
 import { registerSetup } from './setup.js';
 import { registerAuth } from './auth.js';
@@ -67,6 +68,7 @@ export async function createServer(
     const usageByRepo = store.usageByRepo();
     return {
       status: !orchestrator.dispatching ? 'paused' : orchestrator.busy > 0 ? 'working' : 'idle',
+      version: appVersion(),
       dispatching: orchestrator.dispatching,
       busy: orchestrator.busy,
       capacity: orchestrator.capacity,
