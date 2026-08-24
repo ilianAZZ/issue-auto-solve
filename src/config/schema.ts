@@ -63,6 +63,17 @@ export const globalConfig = z.object({
     })
     .default({}),
   defaults: deepPartial.default({}),
+  // Self-update: issue-auto-solve is itself a container, and a new image published to the
+  // registry otherwise sits there until someone runs `docker pull && up -d` by hand. When
+  // enabled, it checks the registry on this interval and, if a newer image is found and no
+  // run is in flight, recreates itself on it. State lives on bind mounts outside the
+  // container, so an update never touches it — see docs/DEPLOY.md.
+  auto_update: z
+    .object({
+      enabled: z.boolean().default(false),
+      check_interval_hours: z.number().int().positive().default(24),
+    })
+    .default({}),
   repositories: z
     .array(
       z.object({
@@ -76,3 +87,4 @@ export const globalConfig = z.object({
 
 export type GlobalConfig = z.infer<typeof globalConfig>;
 export type RepoEntry = GlobalConfig['repositories'][number];
+export type AutoUpdateConfig = GlobalConfig['auto_update'];

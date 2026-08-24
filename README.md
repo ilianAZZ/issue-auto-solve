@@ -144,6 +144,18 @@ opened the issue. Remove the label and the issue goes back to waiting for approv
 Runs are capped by `max_concurrent_runs` globally and per repository, by
 `timeout_minutes`, and by `max_runs_per_task` so a hopeless issue cannot loop forever.
 
+## Updating itself
+
+issue-auto-solve is itself a container, and by default a new published image just sits on
+the registry until someone runs `docker pull && … up -d` on the host. Turn `auto_update` on
+— in `config/issue-auto-solve.yml` or the dashboard's **Updates** panel — and it checks the
+image it was started from on `check_interval_hours`, and once nothing is running, recreates
+its own container on the new one: same volumes, ports, environment and restart policy, read
+straight back off the running container so nothing is retyped. State — the database, the
+encryption key, the dashboard token — lives on the bind mounts in the compose files, outside
+the container, so an update never touches it. Off by default; requires the Docker socket the
+compose files already mount on this service.
+
 ## Dashboard
 
 One page, one filter bar, every repository: what is running now, what is waiting on you

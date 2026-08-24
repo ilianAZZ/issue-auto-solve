@@ -138,6 +138,14 @@ old loop, and keep both stopped-side-by-side for a day rather than switching bli
 
 ## 6. Day-to-day
 
+To stop doing the `pull && up -d` step from [1. The host](#1-the-host) by hand, set
+`auto_update.enabled: true` in `config/issue-auto-solve.yml` (or flip it in the dashboard's
+**Updates** panel). It checks the published image on `check_interval_hours` and recreates
+the container on a new one once nothing is running — the same volumes, so `state/` is
+untouched. It only makes sense for the published-image deployment above; against a
+`build: .` compose it just fails to pull and does nothing, since there is nothing to pull
+from a registry.
+
 ```bash
 docker compose logs -f --tail=100      # what the orchestrator is doing
 docker compose restart                 # after editing config/issue-auto-solve.yml

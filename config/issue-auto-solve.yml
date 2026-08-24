@@ -13,6 +13,14 @@ dispatch_enabled: true
 # secrets. Empty means none.
 allow_env: []
 
+# Self-update: issue-auto-solve is itself a container. With this on, it checks the image
+# it was started from for a newer digest and, when one shows up and nothing is running,
+# recreates itself on it — no "docker pull && up -d" by hand. Off by default; toggle it
+# from the dashboard's Updates panel too, which is checked first on every boot.
+auto_update:
+  enabled: false
+  check_interval_hours: 24
+
 defaults:
   base_branch: main
   branch_pattern: "agent/issue-{{number}}"

@@ -4,6 +4,7 @@ import { loadEnv, loadGlobalConfig } from './config/index.js';
 import { openDatabase } from './db/index.js';
 import { Store } from './db/store.js';
 import { Orchestrator } from './core/orchestrator.js';
+import { AutoUpdater } from './core/auto-update.js';
 import { Credentials } from './core/credentials.js';
 import { SecretStore } from './db/secrets.js';
 import { createServer } from './server/app.js';
@@ -26,13 +27,15 @@ async function main() {
   const credentials = new Credentials(env, secrets);
   const orchestrator = new Orchestrator(env, config, store, credentials);
   orchestrator.seedRepositories();
+  const autoUpdater = new AutoUpdater(store, config.auto_update.check_interval_hours, () => orchestrator.busy > 0, config.auto_update.enabled);
 
   const dashboardToken = resolveDashboardToken(env.DASHBOARD_TOKEN, join(resolve(env.STATE_DIR), 'dashboard.token'));
-  const server = await createServer(env, store, orchestrator, credentials, dashboardToken);
+  const server = await createServer(env, store, orchestrator, credentials, dashboardToken, autoUpdater);
   await server.listen({ port: env.PORT, host: '0.0.0.0' });
   log.info(`dashboard on ${env.PUBLIC_URL}/login?token=${dashboardToken}`);
 
   await orchestrator.start();
+  autoUpdater.start();
   log.info(
     orchestrator.configured
       ? `polling every ${config.poll_interval_seconds}s, ${config.max_concurrent_runs} run(s) at a time`
@@ -42,6 +45,7 @@ async function main() {
   const shutdown = async () => {
     log.info('shutting down');
     orchestrator.stop();
+    autoUpdater.stop();
     await server.close();
     db.close();
     process.exit(0);

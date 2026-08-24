@@ -25,7 +25,7 @@ export interface RunResult {
   exitCode: number | null;
 }
 
-const shellQuote = (value: string) => `'${value.replace(/'/g, `'\\''`)}'`;
+export const shellQuote = (value: string) => `'${value.replace(/'/g, `'\\''`)}'`;
 
 function entrypoint(settings: RepoSettings): string {
   const lines = ['#!/bin/sh', 'set -eu', 'cd /workspace', ''];
