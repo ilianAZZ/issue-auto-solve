@@ -47,7 +47,7 @@ export default function App() {
       {overview.data?.claude_token_invalid && <ClaudeTokenAlert onOpenSetup={() => setSetupOpen(true)} />}
       <Header onOpenSetup={() => setSetupOpen(true)} />
       <main className="mx-auto max-w-[1180px] px-6 py-6">
-        <StatsGrid />
+        <StatsGrid filters={filters} onChange={setFilters} />
         <UsageByRepo />
         <FilterBar filters={filters} onChange={setFilters} />
         <TaskTable filters={filters} onOpenTask={setOpenTaskId} />

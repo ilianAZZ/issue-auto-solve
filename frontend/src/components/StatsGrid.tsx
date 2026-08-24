@@ -1,7 +1,21 @@
 import { useOverview } from '../api/queries';
 import { cost, tokens } from '../lib/format';
+import type { TaskFilters, TaskState } from '../types';
 
-export function StatsGrid() {
+// Maps a stat card to the task state(s) it represents. `claimed` has no chip
+// of its own in FilterBar (it's folded into "Working"), so the Working card
+// toggles both. Cards without an entry here (Repositories, Claude cost/tokens)
+// aren't task-state filters and stay non-interactive.
+const CARD_STATES: Partial<Record<string, TaskState[]>> = {
+  Working: ['running', 'claimed'],
+  'Waiting on you': ['waiting_human'],
+  'Needs approval': ['needs_approval'],
+  Queued: ['discovered'],
+  'PRs open': ['pr_open'],
+  Failed: ['failed'],
+};
+
+export function StatsGrid({ filters, onChange }: { filters: TaskFilters; onChange: (next: TaskFilters) => void }) {
   const { data } = useOverview();
   if (!data) return null;
 
@@ -17,14 +31,34 @@ export function StatsGrid() {
     { key: 'Claude tokens', n: tokens(data.usage.input_tokens + data.usage.output_tokens), alert: false },
   ];
 
+  function toggleStates(states: TaskState[]) {
+    const next = new Set(filters.states);
+    const active = states.every((s) => next.has(s));
+    for (const s of states) active ? next.delete(s) : next.add(s);
+    onChange({ ...filters, states: next });
+  }
+
   return (
     <section className="mb-5 grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
-      {cards.map((card) => (
-        <div key={card.key} className="rounded-xl border border-border bg-panel px-4 py-3.5">
-          <div className={`text-[26px] font-semibold tracking-tight ${card.alert ? 'text-amber' : ''}`}>{card.n}</div>
-          <div className="text-xs tracking-wide text-muted uppercase">{card.key}</div>
-        </div>
-      ))}
+      {cards.map((card) => {
+        const states = CARD_STATES[card.key];
+        const active = !!states && states.every((s) => filters.states.has(s));
+        return (
+          <button
+            key={card.key}
+            type="button"
+            disabled={!states}
+            aria-pressed={states ? active : undefined}
+            onClick={states ? () => toggleStates(states) : undefined}
+            className={`rounded-xl border px-4 py-3.5 text-left transition-colors ${
+              active ? 'border-accent/35 bg-accent-soft' : 'border-border bg-panel'
+            } ${states ? 'cursor-pointer hover:border-accent/35' : 'cursor-default'}`}
+          >
+            <div className={`text-[26px] font-semibold tracking-tight ${card.alert ? 'text-amber' : ''}`}>{card.n}</div>
+            <div className="text-xs tracking-wide text-muted uppercase">{card.key}</div>
+          </button>
+        );
+      })}
     </section>
   );
 }
