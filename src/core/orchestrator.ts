@@ -1,4 +1,5 @@
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, statSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, rmSync, statSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Env, GlobalConfig, RepoSettings } from '../config/index.js';
@@ -432,6 +433,15 @@ export class Orchestrator {
     return { ok: true };
   }
 
+  /**
+   * Manual override from the dashboard: discard a failed task's persisted Claude Code session
+   * so its next run starts a brand-new conversation instead of resuming the one that failed.
+   */
+  resetSession(taskId: number): void {
+    this.discardSession(taskId);
+    this.store.clearSessionId(taskId);
+  }
+
   private async claim(context: RepoContext, task: TaskRow): Promise<TaskRow | null> {
     const branch = render(context.settings.branch_pattern, { number: task.number });
     const access = await this.gh().access(context.fullName);
@@ -468,6 +478,11 @@ export class Orchestrator {
     const run = this.store.startRun(task.id, logPath);
     this.store.transition(task.id, 'running', { branch: task.branch, phase: 'workspace' }, 'run started');
 
+    const sessionId = task.session_id ?? randomUUID();
+    if (!task.session_id) this.store.setSessionId(task.id, sessionId);
+    const sessionPath = this.sessionPath(task.id);
+    mkdirSync(sessionPath, { recursive: true });
+
     try {
       const access = await this.gh().access(context.fullName);
       const issue = await getIssue(access, task.number);
@@ -500,6 +515,8 @@ export class Orchestrator {
           env: this.containerEnv(context, access),
           secrets: [access.token, this.credentials.claudeToken() ?? ''],
           timeoutMinutes: context.settings.limits.timeout_minutes,
+          sessionId,
+          hostSessionPath: this.hostPath(sessionPath, this.env.STATE_DIR, this.env.HOST_STATE_DIR),
         },
         log,
       );
@@ -542,6 +559,7 @@ export class Orchestrator {
       this.store.finishRun(runId, 'succeeded', exitCode, null, usage);
       this.store.transition(task.id, 'merged', { pr_url: work.pullRequest, branch }, 'pull request opened and merged');
       discardWorkspace(workspacePath);
+      this.discardSession(task.id);
       await this.notify(`🎉 ${context.fullName}#${task.number} → ${work.pullRequest} (merged)`);
       return;
     }
@@ -550,6 +568,7 @@ export class Orchestrator {
       this.store.finishRun(runId, 'succeeded', exitCode, null, usage);
       this.store.transition(task.id, 'pr_open', { pr_url: work.pullRequest, branch }, `pull request opened`);
       discardWorkspace(workspacePath);
+      this.discardSession(task.id);
       await this.notify(`✅ ${context.fullName}#${task.number} → ${work.pullRequest}`);
       return;
     }
@@ -628,6 +647,16 @@ export class Orchestrator {
   /** Volumes are mounted by the host daemon, so paths must be host paths when issue-auto-solve itself runs in a container. */
   private hostPath(local: string, localRoot: string, hostRoot?: string): string {
     return hostRoot ? join(hostRoot, relative(resolve(localRoot), local)) : local;
+  }
+
+  /** Where a task's Claude Code session (`~/.claude`) is persisted, so a retry can resume it instead of starting cold. */
+  private sessionPath(taskId: number): string {
+    return join(resolve(this.env.STATE_DIR), 'sessions', String(taskId));
+  }
+
+  /** Drops a finished task's persisted session — nothing will ever resume it again. */
+  private discardSession(taskId: number): void {
+    rmSync(this.sessionPath(taskId), { recursive: true, force: true });
   }
 
   /** Generates .issue-auto-solve.yml for a repository by reading it, and opens a pull request. */

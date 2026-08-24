@@ -16,7 +16,7 @@ export function TaskDrawer({ taskId, onClose }: { taskId: number; onClose: () =>
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  function act(kind: 'requeue' | 'skip') {
+  function act(kind: 'requeue' | 'restart' | 'skip') {
     action.mutate({ id: taskId, action: kind }, { onSuccess: onClose });
   }
 
@@ -25,6 +25,7 @@ export function TaskDrawer({ taskId, onClose }: { taskId: number; onClose: () =>
   }
 
   const active = data?.task.state === 'claimed' || data?.task.state === 'running';
+  const failed = data?.task.state === 'failed';
 
   return (
     <>
@@ -69,9 +70,28 @@ export function TaskDrawer({ taskId, onClose }: { taskId: number; onClose: () =>
               <Button variant="primary" onClick={forceRun} disabled={action.isPending || active}>
                 Force run
               </Button>
-              <Button onClick={() => act('requeue')} disabled={action.isPending}>
-                Requeue
-              </Button>
+              {failed ? (
+                <>
+                  <Button
+                    onClick={() => act('requeue')}
+                    disabled={action.isPending}
+                    title="Resume the same Claude conversation where it left off"
+                  >
+                    Continue
+                  </Button>
+                  <Button
+                    onClick={() => act('restart')}
+                    disabled={action.isPending}
+                    title="Discard the conversation so far and start a brand-new one"
+                  >
+                    Restart
+                  </Button>
+                </>
+              ) : (
+                <Button onClick={() => act('requeue')} disabled={action.isPending}>
+                  Requeue
+                </Button>
+              )}
               <Button onClick={() => act('skip')} disabled={action.isPending}>
                 Skip
               </Button>

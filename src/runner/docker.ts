@@ -18,6 +18,10 @@ export interface RunRequest {
   env: Record<string, string>;
   timeoutMinutes: number;
   secrets: string[];
+  /** Claude Code session id this task's runs share. Omit to run a stateless one-off (e.g. bootstrap). */
+  sessionId?: string;
+  /** Host path bind-mounted to `/session`, persisting the session across the container's `--rm` lifecycle. */
+  hostSessionPath?: string;
 }
 
 export interface RunResult {
@@ -27,7 +31,7 @@ export interface RunResult {
 
 export const shellQuote = (value: string) => `'${value.replace(/'/g, `'\\''`)}'`;
 
-function entrypoint(settings: RepoSettings): string {
+function entrypoint(settings: RepoSettings, sessionId?: string): string {
   const lines = ['#!/bin/sh', 'set -eu', 'cd /workspace', ''];
   for (const command of settings.runtime.setup) lines.push(command);
   if (settings.preflight.length) {
@@ -47,20 +51,31 @@ function entrypoint(settings: RepoSettings): string {
     '  run_user=agent',
     'fi',
     'chown -R "$run_user" /workspace',
-    'su -s /bin/sh "$run_user" -c \'',
-    '  git config --global --add safe.directory /workspace',
-    '  claude -p "$(cat /control/prompt.md)" \\',
-    '    --dangerously-skip-permissions \\',
-    '    --output-format stream-json --verbose',
-    "'",
   );
+  if (sessionId) lines.push('chown -R "$run_user" /session');
+  lines.push('su -s /bin/sh "$run_user" -c \'', '  git config --global --add safe.directory /workspace');
+  if (sessionId) {
+    // A fresh task has no transcript yet, so a plain --resume would fail; --session-id starts
+    // one under that id instead. Once it exists, --resume continues the same conversation.
+    lines.push(
+      `  SESSION_ID=${sessionId}`,
+      '  RESUME_FLAG="--session-id $SESSION_ID"',
+      '  if find /session/projects -name "$SESSION_ID.jsonl" 2>/dev/null | grep -q .; then',
+      '    RESUME_FLAG="--resume $SESSION_ID"',
+      '  fi',
+    );
+  }
+  lines.push('  claude -p "$(cat /control/prompt.md)" \\', '    --dangerously-skip-permissions \\');
+  lines.push(sessionId ? '    --output-format stream-json --verbose \\' : '    --output-format stream-json --verbose');
+  if (sessionId) lines.push('    $RESUME_FLAG');
+  lines.push("'");
   return `${lines.join('\n')}\n`;
 }
 
 export function writeControlFiles(request: RunRequest): void {
   mkdirSync(request.controlPath, { recursive: true });
   writeFileSync(join(request.controlPath, 'prompt.md'), request.prompt);
-  writeFileSync(join(request.controlPath, 'run.sh'), entrypoint(request.settings), { mode: 0o755 });
+  writeFileSync(join(request.controlPath, 'run.sh'), entrypoint(request.settings, request.sessionId), { mode: 0o755 });
 }
 
 export function dockerArgs(request: RunRequest): string[] {
@@ -80,6 +95,9 @@ export function dockerArgs(request: RunRequest): string[] {
     args.push('-v', '/var/run/docker.sock:/var/run/docker.sock');
     args.push('--add-host', 'host.docker.internal:host-gateway');
     args.push('-e', 'TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal');
+  }
+  if (request.hostSessionPath) {
+    args.push('-v', `${request.hostSessionPath}:/session`, '-e', 'CLAUDE_CONFIG_DIR=/session');
   }
   for (const [key, value] of Object.entries(request.env)) args.push('-e', `${key}=${value}`);
   args.push(request.image, 'sh', '/control/run.sh');

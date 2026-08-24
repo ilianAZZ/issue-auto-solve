@@ -25,6 +25,7 @@ export interface TaskRow {
   branch: string | null;
   pr_url: string | null;
   reason: string | null;
+  session_id: string | null;
   waiting_comment_id: number | null;
   waiting_since: string | null;
   retry_at: string | null;
@@ -212,6 +213,16 @@ export class Store {
 
   setPhase(taskId: number, phase: string): void {
     this.db.prepare('UPDATE tasks SET phase = ?, updated_at = ? WHERE id = ?').run(phase, now(), taskId);
+  }
+
+  /** Assigns the Claude Code session a task's runs share, so a retry can resume the same conversation. */
+  setSessionId(taskId: number, sessionId: string): void {
+    this.db.prepare('UPDATE tasks SET session_id = ? WHERE id = ?').run(sessionId, taskId);
+  }
+
+  /** Clears a task's session so its next run starts a brand-new conversation instead of resuming. */
+  clearSessionId(taskId: number): void {
+    this.db.prepare('UPDATE tasks SET session_id = NULL WHERE id = ?').run(taskId);
   }
 
   claimable(repoId: number, excludeLabels: string[], order: 'oldest' | 'newest' | 'priority_labels', priority: string[]): TaskRow[] {

@@ -117,7 +117,10 @@ export async function createServer(
       return { ok: true };
     }
     if (action === 'requeue') store.transition(task.id, 'discovered', {}, 'requeued from the dashboard');
-    else if (action === 'skip') store.transition(task.id, 'skipped', { reason: 'skipped from the dashboard' });
+    else if (action === 'restart') {
+      orchestrator.resetSession(task.id);
+      store.transition(task.id, 'discovered', {}, 'restarted from the dashboard with a new session');
+    } else if (action === 'skip') store.transition(task.id, 'skipped', { reason: 'skipped from the dashboard' });
     else return reply.code(400).send({ error: 'unknown action' });
     void orchestrator.tick();
     return { ok: true };
