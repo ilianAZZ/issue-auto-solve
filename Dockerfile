@@ -9,7 +9,9 @@ RUN npm run build
 
 FROM node:24-slim
 ARG DOCKER_CLI_VERSION=27.3.1
+ARG APP_VERSION=dev
 ENV NODE_ENV=production
+ENV APP_VERSION=$APP_VERSION
 WORKDIR /app
 
 RUN apt-get update \

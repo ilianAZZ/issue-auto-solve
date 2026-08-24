@@ -14,10 +14,32 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Build number shown at the bottom of the dashboard. Only bumped on an actual merge
+      # to main — tag pushes and manual dispatches get a version derived from the ref
+      # instead, so re-running this workflow never skips or reuses a number.
+      - id: version
+        name: Compute build number
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            today=$(date -u +%Y.%m.%d)
+            git fetch --tags --quiet
+            count=$(git tag -l "build-${today}.*" | wc -l)
+            version="${today}.$((count + 1))"
+            git tag "build-${version}"
+            git push origin "build-${version}"
+          elif [ "${{ github.ref_type }}" = "tag" ]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="dev"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
@@ -47,5 +69,6 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: APP_VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
