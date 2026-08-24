@@ -115,16 +115,24 @@ arrives is a liability. Set an approval label and nothing moves without a mainta
 selection:
   require_label: approved
   trusted_associations: [OWNER, MEMBER, COLLABORATOR]
+  whitelist_users: [some-trusted-external]
 ```
 
 Issues without the label sit in `needs_approval` — visible in the dashboard, never
 claimed, never read by the agent. Adding that label already requires triage permission
-on GitHub, so the label *is* the gate; `trusted_associations` narrows it further by who
-opened the issue. Remove the label and the issue goes back to waiting for approval.
+on GitHub, so the label *is* the gate; `trusted_associations` and `whitelist_users`
+narrow it further by who opened the issue — either one is enough to pass, since together
+they're a single whitelist expressed as groups or as individual logins. Remove the label
+and the issue goes back to waiting for approval.
 
-## Labels are the remote control
+`GET /api/repos/:owner/:name/conditions` returns the repository's real labels,
+collaborators, and the fixed set of `trusted_associations` values, so these conditions
+can be filled in from what actually exists instead of guessed at.
 
-- an excluded label takes an issue out of the queue, removing it puts it back;
+## Labels and users are the remote control
+
+- an excluded label (`labels.exclude`) or a blacklisted user (`selection.blacklist_users`)
+  takes an issue out of the queue outright, removing it puts it back;
 - the waiting label parks an issue — including issues already carrying it when you plug
   a repository in, which are adopted rather than re-run;
 - removing the waiting label by hand requeues the issue immediately.

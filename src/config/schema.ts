@@ -20,6 +20,8 @@ export const repoSettings = z.object({
     priority_labels: z.array(z.string()),
     require_label: z.string().nullable(),
     trusted_associations: z.array(z.string()),
+    whitelist_users: z.array(z.string()),
+    blacklist_users: z.array(z.string()),
   }),
   limits: z.object({
     max_concurrent_runs: z.number().int().positive(),

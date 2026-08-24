@@ -7,6 +7,7 @@ export interface IssueSummary {
   labels: string[];
   updatedAt: string;
   isPullRequest: boolean;
+  author: string;
   authorAssociation: string;
 }
 
@@ -34,6 +35,7 @@ export async function listUpdatedIssues(access: RepoAccess, since: string | null
       labels: (issue.labels ?? []).map((l) => (typeof l === 'string' ? l : (l.name ?? ''))).filter(Boolean),
       updatedAt: issue.updated_at,
       isPullRequest: false,
+      author: issue.user?.login ?? 'unknown',
       authorAssociation: issue.author_association ?? 'NONE',
     }));
 }
@@ -56,6 +58,7 @@ export async function getIssue(access: RepoAccess, number: number): Promise<Issu
     labels: (issue.data.labels ?? []).map((l) => (typeof l === 'string' ? l : (l.name ?? ''))).filter(Boolean),
     updatedAt: issue.data.updated_at,
     isPullRequest: Boolean(issue.data.pull_request),
+    author: issue.data.user?.login ?? 'unknown',
     authorAssociation: issue.data.author_association ?? 'NONE',
     comments: comments.map((c) => ({
       id: c.id,
