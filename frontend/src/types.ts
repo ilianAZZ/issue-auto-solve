@@ -43,6 +43,7 @@ export interface RepoOverview {
 export interface AutoUpdateStatus {
   enabled: boolean;
   checking: boolean;
+  restart_pending: boolean;
   last_checked_at: string | null;
   update_available: boolean;
   current_image: string | null;
@@ -57,6 +58,8 @@ export interface Overview {
   capacity: number;
   last_tick_at: string | null;
   claude_token_invalid: boolean;
+  usage_limit_active: boolean;
+  usage_limit_retry_at: string | null;
   auto_update: AutoUpdateStatus;
   counts: OverviewCounts;
   usage: Usage;

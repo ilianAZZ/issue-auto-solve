@@ -27,6 +27,11 @@ const CLAUDE_AUTH_ERROR_MARKER = 'OAuth access token is invalid';
 // Printed when the account's Claude usage limit is hit, followed by the unix seconds the
 // limit resets at, e.g. "Claude AI usage limit reached|1735056000".
 const CLAUDE_USAGE_LIMIT_PATTERN = /Claude AI usage limit reached\|(\d+)/i;
+// Newer Claude Code releases report the same condition as a `stream-json` result line
+// instead, e.g. `{"type":"result","subtype":"success","api_error_status":429,
+// "result":"You've hit your session limit · resets 7:20pm (UTC)",...}` — no epoch, just
+// this phrase in the free-text result.
+const CLAUDE_USAGE_LIMIT_TEXT_PATTERN = /\b(usage|session)\s+limit\b/i;
 // A run that hits the limit without a parseable reset time still shouldn't be retried
 // immediately — fall back to a fixed cooldown.
 const DEFAULT_USAGE_LIMIT_RETRY_MS = 30 * 60_000;
@@ -51,15 +56,37 @@ function logTailContains(logPath: string, marker: string): boolean {
   return (readLogTail(logPath) ?? '').includes(marker);
 }
 
+/** Whether the last `stream-json` result line in the log reports the Claude usage limit was hit. */
+function jsonResultHitUsageLimit(tail: string): boolean {
+  const lines = tail.split('\n');
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = (lines[i] ?? '').trim();
+    if (!line.startsWith('{')) continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const record = parsed as Record<string, unknown>;
+    if (record.type !== 'result') continue;
+    const result = typeof record.result === 'string' ? record.result : '';
+    return CLAUDE_USAGE_LIMIT_TEXT_PATTERN.test(result);
+  }
+  return false;
+}
+
 /** Null unless the run's log shows the Claude usage limit was hit, in which case it's when to retry. */
 function usageLimitRetryAt(logPath: string): Date | null {
   const tail = readLogTail(logPath);
   if (!tail) return null;
   const match = tail.match(CLAUDE_USAGE_LIMIT_PATTERN);
-  if (!match) return null;
-  const resetEpochSeconds = Number(match[1]);
-  if (!Number.isFinite(resetEpochSeconds)) return new Date(Date.now() + DEFAULT_USAGE_LIMIT_RETRY_MS);
-  return new Date(resetEpochSeconds * 1000);
+  if (match) {
+    const resetEpochSeconds = Number(match[1]);
+    return Number.isFinite(resetEpochSeconds) ? new Date(resetEpochSeconds * 1000) : new Date(Date.now() + DEFAULT_USAGE_LIMIT_RETRY_MS);
+  }
+  if (jsonResultHitUsageLimit(tail)) return new Date(Date.now() + DEFAULT_USAGE_LIMIT_RETRY_MS);
+  return null;
 }
 
 interface RepoContext {
@@ -79,6 +106,8 @@ export class Orchestrator {
   private ticking = false;
   private botLogin = 'issue-auto-solve[bot]';
   private paused: boolean;
+  /** Held by the auto-updater once an image update is available, until every in-flight run has drained. */
+  private updateHold = false;
   /**
    * `failed`/`skipped` tasks are re-checked against GitHub on `reconcile_terminal_interval_seconds`
    * rather than on every tick: re-checking the whole failed/skipped backlog every tick scales
@@ -141,7 +170,7 @@ export class Orchestrator {
   }
 
   get dispatching(): boolean {
-    return this.config.dispatch_enabled && !this.paused;
+    return this.config.dispatch_enabled && !this.paused && !this.updateHold;
   }
 
   /** Pausing stops new claims from being picked up; runs already in flight finish on their own. */
@@ -154,6 +183,16 @@ export class Orchestrator {
     this.paused = false;
     this.store.setMeta('dispatch_paused', '0');
     void this.tick();
+  }
+
+  /**
+   * Called by the auto-updater once it sees a new image: holding dispatch stops new claude
+   * runs from starting while it waits for the current ones to finish before restarting.
+   * Runs already in flight are left alone and finish on their own, same as `pause()`.
+   */
+  setUpdateHold(hold: boolean): void {
+    this.updateHold = hold;
+    if (!hold) void this.tick();
   }
 
   private recoverInterrupted(): void {
@@ -562,6 +601,7 @@ export class Orchestrator {
 
       if (result.status === 'succeeded') {
         this.store.setMeta('claude_token_invalid', '0');
+        this.store.setMeta('usage_limit_active', '0');
       } else if (logTailContains(logPath, CLAUDE_AUTH_ERROR_MARKER)) {
         this.store.setMeta('claude_token_invalid', '1');
         log.error(`${context.fullName}#${task.number}: the Claude Code token was rejected`);
@@ -637,6 +677,10 @@ export class Orchestrator {
     }
 
     const retryAt = status !== 'timeout' ? usageLimitRetryAt(logPath) : null;
+    if (retryAt) {
+      this.store.setMeta('usage_limit_active', '1');
+      this.store.setMeta('usage_limit_retry_at', retryAt.toISOString());
+    }
     const reason = status === 'timeout'
       ? `timed out after ${context.settings.limits.timeout_minutes}m`
       : retryAt
@@ -814,6 +858,11 @@ export class Orchestrator {
   /** Exposes repo-scoped GitHub access to the dashboard API, e.g. to list real labels and users. */
   async repoAccess(fullName: string): Promise<RepoAccess> {
     return this.gh().access(fullName);
+  }
+
+  /** Every repository the configured credentials can see, for the dashboard's repo picker. */
+  async listRepos(): Promise<string[]> {
+    return this.gh().listAccessibleRepos();
   }
 
   private contextFor(task: TaskRow): RepoContext | undefined {

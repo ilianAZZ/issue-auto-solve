@@ -64,6 +64,17 @@ export async function createServer(
   registerSetup(app, env, store, credentials, orchestrator);
   registerNotifications(app, store);
 
+  // Client-side routes (e.g. `/config`) have no matching static file, so a direct
+  // navigation or reload falls through to here: hand back the SPA shell and let the
+  // frontend router take over, same as it would from `/`.
+  app.setNotFoundHandler((request, reply) => {
+    const path = request.url.split('?')[0] ?? '/';
+    if (request.method !== 'GET' || path.startsWith('/api') || path.startsWith('/webhooks') || path.startsWith('/setup')) {
+      return reply.code(404).send({ error: 'not found' });
+    }
+    return reply.type('text/html').send(createReadStream(join(webRoot, 'index.html')));
+  });
+
   app.get('/api/overview', async () => {
     const tasks = TASK_STATES.flatMap((state) => store.byState(state));
     const counts = Object.fromEntries(TASK_STATES.map((state) => [state, store.byState(state).length]));
@@ -76,6 +87,8 @@ export async function createServer(
       capacity: orchestrator.capacity,
       last_tick_at: store.meta('last_tick_at'),
       claude_token_invalid: store.meta('claude_token_invalid') === '1',
+      usage_limit_active: store.meta('usage_limit_active') === '1',
+      usage_limit_retry_at: store.meta('usage_limit_retry_at'),
       auto_update: autoUpdater.status(),
       counts,
       usage: store.usageSummary(),

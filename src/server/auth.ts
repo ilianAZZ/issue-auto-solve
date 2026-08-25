@@ -7,7 +7,8 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 const COOKIE = 'ias_session';
 // /api/health carries no data and is what container health checks call. The built frontend's
 // hashed JS/CSS bundles live under /assets/ and must load before there's a session to check.
-const PUBLIC_PATHS = new Set(['/', '/index.html', '/favicon.ico', '/api/health']);
+// /config is the client-side router's setup page, served the same SPA shell as `/`.
+const PUBLIC_PATHS = new Set(['/', '/index.html', '/favicon.ico', '/api/health', '/config']);
 const isPublicAsset = (path: string) => PUBLIC_PATHS.has(path) || path.startsWith('/assets/');
 
 export function resolveDashboardToken(fromEnv: string | undefined, tokenFile: string): string {

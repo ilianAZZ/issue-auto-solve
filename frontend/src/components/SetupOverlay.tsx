@@ -263,11 +263,13 @@ export function SetupOverlay({ onClose }: { onClose: () => void }) {
             <span className="text-[12.5px] text-muted">
               {autoUpdate?.checking
                 ? 'checking…'
-                : autoUpdate?.update_available
-                  ? 'update available, applying on the next check'
-                  : autoUpdate?.current_image
-                    ? `up to date (${autoUpdate.current_image})`
-                    : 'not checked yet'}
+                : autoUpdate?.restart_pending
+                  ? 'update available, waiting for running tasks to finish before restarting'
+                  : autoUpdate?.update_available
+                    ? 'update available, applying shortly'
+                    : autoUpdate?.current_image
+                      ? `up to date (${autoUpdate.current_image})`
+                      : 'not checked yet'}
               {autoUpdate?.last_checked_at ? ` · checked ${ago(autoUpdate.last_checked_at)} ago` : ''}
             </span>
           </div>

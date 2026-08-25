@@ -40,6 +40,13 @@ function run(args: string[]): Promise<DockerResult> {
   });
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** How often to re-check for in-flight runs while an update is waiting to apply. */
+const IDLE_POLL_INTERVAL_MS = 5_000;
+
 async function inspectField(target: string, format: string): Promise<string | null> {
   const result = await run(['inspect', '--format', format, target]);
   return result.code === 0 ? result.stdout.trim() : null;
@@ -78,6 +85,7 @@ export function buildRunArgs(inspect: SelfInspect, image: string, name: string):
 export interface AutoUpdateStatus {
   enabled: boolean;
   checking: boolean;
+  restart_pending: boolean;
   last_checked_at: string | null;
   update_available: boolean;
   current_image: string | null;
@@ -91,11 +99,17 @@ export interface AutoUpdateStatus {
  * and removes the old container, then starts a new one from the freshly pulled image with
  * the same run configuration. The existing SIGTERM handler in index.ts shuts this process
  * down cleanly when that "docker stop" lands.
+ *
+ * Recreating the container kills every claude run in flight along with it, so an update that
+ * lands while runs are active must not apply immediately: new dispatching is held as soon as
+ * an update is seen, and the restart itself waits until the orchestrator reports no run in
+ * flight, however long that takes, instead of giving up until the next scheduled check.
  */
 export class AutoUpdater {
   private enabled: boolean;
   private timer: NodeJS.Timeout | null = null;
   private checking = false;
+  private restartPending = false;
   private lastCheckedAt: string | null = null;
   private updateAvailable = false;
   private currentImage: string | null = null;
@@ -106,6 +120,7 @@ export class AutoUpdater {
     private readonly checkIntervalHours: number,
     private readonly isBusy: () => boolean,
     configDefaultEnabled: boolean,
+    private readonly setDispatchHold: (hold: boolean) => void,
   ) {
     const stored = store.meta('auto_update_enabled');
     this.enabled = stored === null ? configDefaultEnabled : stored === '1';
@@ -115,6 +130,7 @@ export class AutoUpdater {
     return {
       enabled: this.enabled,
       checking: this.checking,
+      restart_pending: this.restartPending,
       last_checked_at: this.lastCheckedAt,
       update_available: this.updateAvailable,
       current_image: this.currentImage,
@@ -139,18 +155,20 @@ export class AutoUpdater {
   }
 
   async check(): Promise<void> {
-    if (this.checking) return;
+    if (this.checking || this.restartPending) return;
     this.checking = true;
+    let containerId: string | undefined;
+    let image: string | null = null;
     try {
       if (!this.enabled) return;
-      const containerId = process.env.HOSTNAME;
+      containerId = process.env.HOSTNAME;
       if (!containerId) {
         this.lastError = 'cannot determine the running container id (HOSTNAME is unset)';
         log.warn(this.lastError);
         return;
       }
 
-      const image = await inspectField(containerId, '{{.Config.Image}}');
+      image = await inspectField(containerId, '{{.Config.Image}}');
       const currentImageId = await inspectField(containerId, '{{.Image}}');
       if (!image || !currentImageId) {
         this.lastError = `cannot inspect container ${containerId} — is /var/run/docker.sock mounted?`;
@@ -170,16 +188,37 @@ export class AutoUpdater {
       this.lastError = null;
       this.lastCheckedAt = now();
       this.updateAvailable = Boolean(latestImageId) && latestImageId !== currentImageId;
-      if (!this.updateAvailable) return;
-
-      log.info(`new image available for ${image}`);
-      if (this.isBusy()) {
-        log.info('a run is in flight, deferring the update to the next check');
-        return;
-      }
-      await this.perform(containerId, image);
     } finally {
       this.checking = false;
+    }
+
+    if (!this.updateAvailable || !containerId || !image) return;
+    await this.waitForIdleThenPerform(containerId, image);
+  }
+
+  /**
+   * Holds new dispatching the moment an update is seen, so nothing new starts while the
+   * restart is pending, then blocks until every in-flight run has drained before applying it.
+   * Polls rather than waiting on a single event because runs can finish (or fail, or a new
+   * one can be force-started from the dashboard) at any time relative to this check.
+   */
+  private async waitForIdleThenPerform(containerId: string, image: string): Promise<void> {
+    log.info(`new image available for ${image}, holding new runs until the current ones drain`);
+    this.restartPending = true;
+    this.setDispatchHold(true);
+    try {
+      while (this.enabled && this.isBusy()) {
+        await sleep(IDLE_POLL_INTERVAL_MS);
+      }
+      if (!this.enabled) {
+        log.info('auto-update disabled while waiting for runs to drain, leaving the update for next time');
+        return;
+      }
+      log.info('all runs finished, applying the update');
+      await this.perform(containerId, image);
+    } finally {
+      this.restartPending = false;
+      this.setDispatchHold(false);
     }
   }
 
