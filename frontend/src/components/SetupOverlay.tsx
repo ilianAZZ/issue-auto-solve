@@ -3,18 +3,24 @@ import {
   useAddRepo,
   useAutoUpdateAction,
   useBootstrapRepo,
+  useCreateNotificationRule,
+  useDeleteNotificationRule,
+  useNotificationRules,
   useOverview,
   useRemoveRepo,
   useRepos,
   useSaveClaudeToken,
   useSaveGithubToken,
   useSetupStatus,
+  useUpdateNotificationRule,
 } from '../api/queries';
 import { ago } from '../lib/format';
-import type { RepoSettingsForm } from '../types';
+import { LABELS } from '../lib/constants';
+import type { NotificationRule, RepoSettingsForm } from '../types';
 import { Button } from './ui/Button';
 import { BootstrapModal } from './BootstrapModal';
 import { AddRepoModal } from './AddRepoModal';
+import { NotificationRuleModal } from './NotificationRuleModal';
 
 function Badge({ text, ok }: { text: string; ok: boolean }) {
   return (
@@ -39,6 +45,10 @@ export function SetupOverlay({ onClose }: { onClose: () => void }) {
   const bootstrapRepo = useBootstrapRepo();
   const autoUpdateAction = useAutoUpdateAction();
   const autoUpdate = overview.data?.auto_update;
+  const notificationRules = useNotificationRules();
+  const createNotificationRule = useCreateNotificationRule();
+  const updateNotificationRule = useUpdateNotificationRule();
+  const deleteNotificationRule = useDeleteNotificationRule();
 
   const [ghAppName, setGhAppName] = useState('issue-auto-solve');
   const [ghOrg, setGhOrg] = useState('');
@@ -46,6 +56,7 @@ export function SetupOverlay({ onClose }: { onClose: () => void }) {
   const [clToken, setClToken] = useState('');
   const [addingRepo, setAddingRepo] = useState(false);
   const [bootstrapTarget, setBootstrapTarget] = useState<string | null>(null);
+  const [editingRule, setEditingRule] = useState<NotificationRule | 'new' | null>(null);
 
   const githubLocked = status.data?.locked.github ?? false;
   const claudeLocked = status.data?.locked.claude ?? false;
@@ -263,6 +274,49 @@ export function SetupOverlay({ onClose }: { onClose: () => void }) {
           {autoUpdate?.last_error && <p className="m-0 text-[12.5px] text-red">{autoUpdate.last_error}</p>}
         </article>
 
+        <article className="mb-4 rounded-xl border border-border bg-panel p-5 shadow-[0_1px_2px_rgba(16,16,24,.06),0_8px_24px_rgba(16,16,24,.06)]">
+          <header className="mb-2.5 flex items-center gap-2.5">
+            <span className="grid h-[22px] w-[22px] place-items-center rounded-full bg-accent-soft text-xs font-bold text-accent">
+              5
+            </span>
+            <h2 className="m-0 flex-1 text-[15px]">Notifications</h2>
+            <Badge text={notificationRules.data?.length ? `${notificationRules.data.length} rule(s)` : 'none'} ok={Boolean(notificationRules.data?.length)} />
+          </header>
+          <p className="mt-0 mb-3 text-[13px] text-muted">
+            Send a Discord or generic webhook message whenever a task's status changes — a pull request opened, a
+            merge, a failure, a question waiting on you. Each rule scopes itself to a set of repositories and
+            statuses; leave either empty to match all of them.
+          </p>
+          <div className="mb-2">
+            <Button variant="primary" onClick={() => setEditingRule('new')}>
+              Add notification
+            </Button>
+          </div>
+          <ul className="my-2 mb-3 list-none p-0">
+            {notificationRules.data?.length ? (
+              notificationRules.data.map((rule) => (
+                <li key={rule.id} className="flex items-center gap-2.5 border-b border-border py-2.5 text-[13px] last:border-0">
+                  <span className="flex-1">
+                    <span className="font-medium">{rule.name}</span>
+                    {!rule.enabled && <span className="ml-2 text-[11.5px] text-muted">disabled</span>}
+                    <div className="mt-0.5 text-[11.5px] text-muted">
+                      {rule.repos.length ? rule.repos.join(', ') : 'any repository'} ·{' '}
+                      {rule.statuses.length ? rule.statuses.map((s) => LABELS[s]).join(', ') : 'any status'} ·{' '}
+                      {rule.targets.length} target{rule.targets.length === 1 ? '' : 's'}
+                    </div>
+                  </span>
+                  <Button onClick={() => setEditingRule(rule)}>Edit</Button>
+                  <Button onClick={() => deleteNotificationRule.mutate(rule.id)} disabled={deleteNotificationRule.isPending}>
+                    Remove
+                  </Button>
+                </li>
+              ))
+            ) : (
+              <li className="text-[12.5px] text-muted">No notification configured.</li>
+            )}
+          </ul>
+        </article>
+
         <Button onClick={onClose}>Back to the dashboard</Button>
       </div>
 
@@ -280,6 +334,21 @@ export function SetupOverlay({ onClose }: { onClose: () => void }) {
 
       {addingRepo && (
         <AddRepoModal onCancel={() => setAddingRepo(false)} onConfirm={addRepoNow} pending={addRepo.isPending} />
+      )}
+
+      {editingRule && (
+        <NotificationRuleModal
+          initial={editingRule === 'new' ? undefined : editingRule}
+          pending={createNotificationRule.isPending || updateNotificationRule.isPending}
+          onCancel={() => setEditingRule(null)}
+          onConfirm={(input) => {
+            if (editingRule === 'new') {
+              createNotificationRule.mutate(input, { onSuccess: () => setEditingRule(null) });
+            } else {
+              updateNotificationRule.mutate({ id: editingRule.id, input }, { onSuccess: () => setEditingRule(null) });
+            }
+          }}
+        />
       )}
     </div>
   );

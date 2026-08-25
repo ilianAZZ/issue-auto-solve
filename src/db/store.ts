@@ -1,4 +1,5 @@
 import type { Db } from './index.js';
+import type { NotificationRuleInput } from '../config/notifications.js';
 import { canTransition, InvalidTransition, type TaskState } from '../core/states.js';
 import { now } from '../util/time.js';
 import type { RunUsage } from '../util/usage.js';
@@ -72,6 +73,17 @@ export interface EventRow {
   kind: string;
   message: string;
   created_at: string;
+}
+
+export interface NotificationRuleRow {
+  id: number;
+  name: string;
+  enabled: number;
+  repos_json: string;
+  statuses_json: string;
+  targets_json: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface BootstrapRow {
@@ -406,6 +418,56 @@ export class Store {
     return this.db
       .prepare('SELECT * FROM bootstrap_runs WHERE repo_id = ? ORDER BY id DESC LIMIT 1')
       .get(repoId) as BootstrapRow | undefined;
+  }
+
+  notificationRules(): NotificationRuleRow[] {
+    return this.db.prepare('SELECT * FROM notification_rules ORDER BY id').all() as unknown as NotificationRuleRow[];
+  }
+
+  notificationRule(id: number): NotificationRuleRow | undefined {
+    return this.db.prepare('SELECT * FROM notification_rules WHERE id = ?').get(id) as NotificationRuleRow | undefined;
+  }
+
+  createNotificationRule(input: NotificationRuleInput): NotificationRuleRow {
+    const stamp = now();
+    this.db
+      .prepare(
+        `INSERT INTO notification_rules (name, enabled, repos_json, statuses_json, targets_json, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        input.name,
+        input.enabled ? 1 : 0,
+        JSON.stringify(input.repos),
+        JSON.stringify(input.statuses),
+        JSON.stringify(input.targets),
+        stamp,
+        stamp,
+      );
+    return this.db.prepare('SELECT * FROM notification_rules ORDER BY id DESC LIMIT 1').get() as unknown as NotificationRuleRow;
+  }
+
+  updateNotificationRule(id: number, input: NotificationRuleInput): NotificationRuleRow | undefined {
+    if (!this.notificationRule(id)) return undefined;
+    this.db
+      .prepare(
+        `UPDATE notification_rules SET name = ?, enabled = ?, repos_json = ?, statuses_json = ?, targets_json = ?, updated_at = ?
+         WHERE id = ?`,
+      )
+      .run(
+        input.name,
+        input.enabled ? 1 : 0,
+        JSON.stringify(input.repos),
+        JSON.stringify(input.statuses),
+        JSON.stringify(input.targets),
+        now(),
+        id,
+      );
+    return this.notificationRule(id);
+  }
+
+  deleteNotificationRule(id: number): void {
+    this.db.prepare('DELETE FROM notification_rules WHERE id = ?').run(id);
   }
 
   meta(key: string): string | null {

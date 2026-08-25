@@ -12,9 +12,11 @@ import { render } from '../prompt/render.js';
 import { runContainer } from '../runner/docker.js';
 import { prepareWorkspace, discardWorkspace } from '../runner/workspace.js';
 import { logger } from '../util/log.js';
-import { notifier, type Notify } from '../util/notify.js';
+import { notifier, sendToTarget, type Notify } from '../util/notify.js';
 import { now } from '../util/time.js';
 import { parseRunUsage, type RunUsage } from '../util/usage.js';
+import { matchingTargets } from './notifications.js';
+import type { TaskState } from './states.js';
 
 const log = logger('orchestrator');
 const here = dirname(fileURLToPath(import.meta.url));
@@ -232,7 +234,9 @@ export class Orchestrator {
         await setLabel(access, task.number, context.settings.labels.waiting, false);
         this.store.transition(task.id, 'discovered', {}, `answered by ${answer.author}`);
         log.info(`#${task.number} on ${context.fullName} was answered, back in the queue`);
-        await this.notify(`💬 ${context.fullName}#${task.number} answered by ${answer.author}, picking it back up`);
+        const message = `💬 ${context.fullName}#${task.number} answered by ${answer.author}, picking it back up`;
+        await this.notify(message);
+        await this.fireRuleNotifications(context.fullName, 'discovered', message);
       } catch (error) {
         log.error(`resume check failed for ${context.fullName}#${task.number}`, { error: String(error) });
       }
@@ -274,7 +278,9 @@ export class Orchestrator {
         if (work.pullRequestMerged && task.state !== 'merged') {
           this.store.transition(task.id, 'merged', { pr_url: work.pullRequest, branch: task.branch }, 'pull request merged');
           log.info(`#${task.number} on ${context.fullName} merged -> ${work.pullRequest}`);
-          await this.notify(`🎉 ${context.fullName}#${task.number} merged → ${work.pullRequest}`);
+          const message = `🎉 ${context.fullName}#${task.number} merged → ${work.pullRequest}`;
+          await this.notify(message);
+          await this.fireRuleNotifications(context.fullName, 'merged', message);
         } else if (work.pullRequestOpen && task.state !== 'pr_open') {
           this.store.transition(
             task.id,
@@ -559,7 +565,9 @@ export class Orchestrator {
       this.store.finishRun(run.id, 'failed', null, String(error));
       this.store.transition(task.id, 'failed', { reason: String(error) }, 'run crashed');
       log.error(`run failed for ${context.fullName}#${task.number}`, { error: String(error) });
-      await this.notify(`❌ ${context.fullName}#${task.number} failed: ${String(error).slice(0, 300)}`);
+      const message = `❌ ${context.fullName}#${task.number} failed: ${String(error).slice(0, 300)}`;
+      await this.notify(message);
+      await this.fireRuleNotifications(context.fullName, 'failed', message);
     } finally {
       this.inflight.delete(task.id);
     }
@@ -585,7 +593,9 @@ export class Orchestrator {
       this.store.transition(task.id, 'merged', { pr_url: work.pullRequest, branch }, 'pull request opened and merged');
       discardWorkspace(workspacePath);
       this.discardSession(task.id);
-      await this.notify(`🎉 ${context.fullName}#${task.number} → ${work.pullRequest} (merged)`);
+      const message = `🎉 ${context.fullName}#${task.number} → ${work.pullRequest} (merged)`;
+      await this.notify(message);
+      await this.fireRuleNotifications(context.fullName, 'merged', message);
       return;
     }
 
@@ -594,7 +604,9 @@ export class Orchestrator {
       this.store.transition(task.id, 'pr_open', { pr_url: work.pullRequest, branch }, `pull request opened`);
       discardWorkspace(workspacePath);
       this.discardSession(task.id);
-      await this.notify(`✅ ${context.fullName}#${task.number} → ${work.pullRequest}`);
+      const message = `✅ ${context.fullName}#${task.number} → ${work.pullRequest}`;
+      await this.notify(message);
+      await this.fireRuleNotifications(context.fullName, 'pr_open', message);
       return;
     }
 
@@ -610,7 +622,9 @@ export class Orchestrator {
         'question posted, waiting for an answer',
       );
       discardWorkspace(workspacePath);
-      await this.notify(`❓ ${context.fullName}#${task.number} needs an answer: ${question.body.slice(0, 200)}`);
+      const message = `❓ ${context.fullName}#${task.number} needs an answer: ${question.body.slice(0, 200)}`;
+      await this.notify(message);
+      await this.fireRuleNotifications(context.fullName, 'waiting_human', message);
       return;
     }
 
@@ -622,7 +636,9 @@ export class Orchestrator {
         : `agent exited with code ${exitCode ?? '?'} without opening a pull request`;
     this.store.finishRun(runId, status === 'timeout' ? 'timeout' : 'failed', exitCode, reason, usage);
     this.store.transition(task.id, 'failed', { branch, reason, retry_at: retryAt?.toISOString() ?? null }, reason);
-    await this.notify(`⚠️ ${context.fullName}#${task.number}: ${reason}`);
+    const message = `⚠️ ${context.fullName}#${task.number}: ${reason}`;
+    await this.notify(message);
+    await this.fireRuleNotifications(context.fullName, 'failed', message);
   }
 
   private async buildPrompt(
@@ -761,6 +777,24 @@ export class Orchestrator {
       this.store.finishBootstrap(id, 'failed', String(error));
       log.error(`bootstrap failed for ${fullName}`, { error: String(error) });
     }
+  }
+
+  /**
+   * Configurable alerts, distinct from the single operator-wide `notify` above: a rule
+   * scopes itself to a set of repositories and statuses (either left empty means "any")
+   * and lists the Discord/webhook targets that should hear about it.
+   */
+  private async fireRuleNotifications(fullName: string, state: TaskState, message: string): Promise<void> {
+    const rules = this.store.notificationRules().map((row) => ({
+      id: row.id,
+      name: row.name,
+      enabled: Boolean(row.enabled),
+      repos: JSON.parse(row.repos_json) as string[],
+      statuses: JSON.parse(row.statuses_json) as TaskState[],
+      targets: JSON.parse(row.targets_json) as { type: 'discord' | 'webhook'; url: string }[],
+    }));
+    const targets = matchingTargets(rules, fullName, state);
+    await Promise.all(targets.map((target) => sendToTarget(target, message, { repo: fullName, status: state }, log)));
   }
 
   private gh(): GitHub {

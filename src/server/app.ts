@@ -12,6 +12,7 @@ import { logger } from '../util/log.js';
 import { appVersion } from '../util/version.js';
 import { interpret, verifySignature } from './webhook.js';
 import { registerSetup } from './setup.js';
+import { registerNotifications } from './notifications.js';
 import { registerAuth } from './auth.js';
 import type { Credentials } from '../core/credentials.js';
 
@@ -61,6 +62,7 @@ export async function createServer(
   registerAuth(app, dashboardToken, env.PUBLIC_URL.startsWith('https://'));
   await app.register(fastifyStatic, { root: webRoot, prefix: '/' });
   registerSetup(app, env, store, credentials, orchestrator);
+  registerNotifications(app, store);
 
   app.get('/api/overview', async () => {
     const tasks = TASK_STATES.flatMap((state) => store.byState(state));
