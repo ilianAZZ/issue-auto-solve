@@ -167,3 +167,29 @@ export interface TaskFilters {
   repo: string;
   q: string;
 }
+
+export type NotificationTargetType = 'discord' | 'webhook';
+
+export interface NotificationTarget {
+  type: NotificationTargetType;
+  url: string;
+}
+
+export interface NotificationRule {
+  id: number;
+  name: string;
+  enabled: boolean;
+  repos: string[];
+  statuses: TaskState[];
+  targets: NotificationTarget[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NotificationRuleInput {
+  name: string;
+  enabled: boolean;
+  repos: string[];
+  statuses: TaskState[];
+  targets: NotificationTarget[];
+}

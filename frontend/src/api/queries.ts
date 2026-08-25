@@ -1,6 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
-import type { Overview, RepoConditions, RepoSetup, RepoSettingsInput, SetupStatus, Task, TaskDetail, TaskFilters } from '../types';
+import type {
+  NotificationRule,
+  NotificationRuleInput,
+  Overview,
+  RepoConditions,
+  RepoSetup,
+  RepoSettingsInput,
+  SetupStatus,
+  Task,
+  TaskDetail,
+  TaskFilters,
+} from '../types';
 
 const POLL_MS = 4000;
 
@@ -140,4 +151,35 @@ export function useBootstrapRepo() {
   return useSetupMutation(({ fullName, instructions }: { fullName: string; instructions: string }) =>
     api.post(`/api/repos/${fullName}/bootstrap`, { instructions }),
   );
+}
+
+export function useNotificationRules() {
+  return useQuery({
+    queryKey: ['notification-rules'],
+    queryFn: () => api.get<NotificationRule[]>('/api/notifications'),
+  });
+}
+
+function useNotificationRuleMutation<TVariables>(mutationFn: (variables: TVariables) => Promise<unknown>) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['notification-rules'] });
+    },
+  });
+}
+
+export function useCreateNotificationRule() {
+  return useNotificationRuleMutation((input: NotificationRuleInput) => api.post('/api/notifications', input));
+}
+
+export function useUpdateNotificationRule() {
+  return useNotificationRuleMutation(({ id, input }: { id: number; input: NotificationRuleInput }) =>
+    api.put(`/api/notifications/${id}`, input),
+  );
+}
+
+export function useDeleteNotificationRule() {
+  return useNotificationRuleMutation((id: number) => api.delete(`/api/notifications/${id}`));
 }
