@@ -2,6 +2,13 @@
 # override it in its own .issue-auto-solve.yml.
 
 poll_interval_seconds: 120
+
+# failed/skipped tasks are re-checked against GitHub (did a human merge or close it since?)
+# on this interval instead of on every poll tick — re-checking the whole failed/skipped
+# backlog every tick scales with total task history instead of active work, and is what
+# exhausted the GitHub rate limit permanently once the backlog grew past ~80 tasks.
+reconcile_terminal_interval_seconds: 300
+
 max_concurrent_runs: 2
 
 # false: issue-auto-solve watches, syncs and shows everything but never starts a run.

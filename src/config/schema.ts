@@ -55,6 +55,12 @@ export type RepoSettingsInput = z.infer<typeof deepPartial>;
 
 export const globalConfig = z.object({
   poll_interval_seconds: z.number().int().positive().default(120),
+  // A pull request for a failed/skipped task can still get merged or closed by hand on
+  // GitHub, so those are re-checked periodically — but on this longer interval, not on
+  // every poll tick: re-checking the whole failed/skipped backlog every tick scales with
+  // total task history instead of active work, and is what exhausted the GitHub rate
+  // limit permanently once that backlog grew past ~80 tasks.
+  reconcile_terminal_interval_seconds: z.number().int().positive().default(300),
   max_concurrent_runs: z.number().int().positive().default(2),
   dispatch_enabled: z.boolean().default(true),
   // Environment variables a repository may ask for. Empty means none.

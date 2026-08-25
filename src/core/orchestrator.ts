@@ -77,6 +77,13 @@ export class Orchestrator {
   private ticking = false;
   private botLogin = 'issue-auto-solve[bot]';
   private paused: boolean;
+  /**
+   * `failed`/`skipped` tasks are re-checked against GitHub on `reconcile_terminal_interval_seconds`
+   * rather than on every tick: re-checking the whole failed/skipped backlog every tick scales
+   * with total task history instead of active work, and was enough on its own to permanently
+   * exhaust the GitHub rate limit once the backlog grew past ~80 tasks.
+   */
+  private readonly terminalCheckedAt = new Map<number, number>();
 
   constructor(
     private readonly env: Env,
@@ -218,13 +225,17 @@ export class Orchestrator {
     for (const task of this.store.byState('waiting_human')) {
       const context = this.contextFor(task);
       if (!context) continue;
-      const access = await this.gh().access(context.fullName);
-      const answer = await answerAfter(access, task.number, task.waiting_comment_id, this.botLogin);
-      if (!answer) continue;
-      await setLabel(access, task.number, context.settings.labels.waiting, false);
-      this.store.transition(task.id, 'discovered', {}, `answered by ${answer.author}`);
-      log.info(`#${task.number} on ${context.fullName} was answered, back in the queue`);
-      await this.notify(`💬 ${context.fullName}#${task.number} answered by ${answer.author}, picking it back up`);
+      try {
+        const access = await this.gh().access(context.fullName);
+        const answer = await answerAfter(access, task.number, task.waiting_comment_id, this.botLogin);
+        if (!answer) continue;
+        await setLabel(access, task.number, context.settings.labels.waiting, false);
+        this.store.transition(task.id, 'discovered', {}, `answered by ${answer.author}`);
+        log.info(`#${task.number} on ${context.fullName} was answered, back in the queue`);
+        await this.notify(`💬 ${context.fullName}#${task.number} answered by ${answer.author}, picking it back up`);
+      } catch (error) {
+        log.error(`resume check failed for ${context.fullName}#${task.number}`, { error: String(error) });
+      }
     }
   }
 
@@ -233,6 +244,7 @@ export class Orchestrator {
     for (const task of this.store.dueForRetry()) {
       const context = this.contextFor(task);
       const label = context ? context.fullName : `repo ${task.repo_id}`;
+      this.terminalCheckedAt.delete(task.id);
       this.store.transition(task.id, 'discovered', {}, 'usage limit delay passed, retrying');
       log.info(`#${task.number} on ${label} is retrying after the usage limit delay`);
     }
@@ -246,7 +258,12 @@ export class Orchestrator {
    * freezing at whatever the last run concluded.
    */
   private async syncPullRequests(): Promise<void> {
-    const candidates = (['pr_open', 'skipped', 'failed'] as const).flatMap((state) => this.store.byState(state));
+    const dueAt = Date.now() - this.config.reconcile_terminal_interval_seconds * 1000;
+    const openEnded = this.store.byState('pr_open');
+    const due = (['skipped', 'failed'] as const)
+      .flatMap((state) => this.store.byState(state))
+      .filter((task) => (this.terminalCheckedAt.get(task.id) ?? 0) <= dueAt);
+    const candidates = [...openEnded, ...due];
     for (const task of candidates) {
       if (!task.branch) continue;
       const context = this.contextFor(task);
@@ -267,6 +284,7 @@ export class Orchestrator {
           );
           log.info(`#${task.number} on ${context.fullName} actually has an open pull request -> ${work.pullRequest}`);
         }
+        if (task.state === 'skipped' || task.state === 'failed') this.terminalCheckedAt.set(task.id, Date.now());
       } catch (error) {
         log.error(`pull request check failed for ${context.fullName}#${task.number}`, { error: String(error) });
       }
@@ -355,6 +373,7 @@ export class Orchestrator {
         (task.reason ?? '').startsWith('blacklisted user') ||
         (task.reason ?? '').startsWith('blacklisted tag'))
     ) {
+      this.terminalCheckedAt.delete(task.id);
       this.store.transition(task.id, 'discovered', {}, 'exclusion removed');
       return;
     }
@@ -400,7 +419,13 @@ export class Orchestrator {
           )
           .find((task) => task.run_count < context.settings.limits.max_runs_per_task);
         if (!candidate) break;
-        const claimed = await this.claim(context, candidate);
+        let claimed: TaskRow | null;
+        try {
+          claimed = await this.claim(context, candidate);
+        } catch (error) {
+          log.error(`claim failed for ${context.fullName}#${candidate.number}`, { error: String(error) });
+          break;
+        }
         if (!claimed) continue;
         void this.execute(context, claimed);
       }
