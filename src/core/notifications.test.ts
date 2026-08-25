@@ -19,6 +19,11 @@ test('a rule scoped to a repo does not fire for another repo', () => {
   assert.deepEqual(targets, []);
 });
 
+test('a rule scoped to a repo matches regardless of case', () => {
+  const targets = matchingTargets([rule({ repos: ['Acme/Breem'] })], 'acme/breem', 'pr_open');
+  assert.deepEqual(targets, [discord]);
+});
+
 test('a rule scoped to a status does not fire for another status', () => {
   const targets = matchingTargets([rule({ statuses: ['merged'] })], 'acme/breem', 'pr_open');
   assert.deepEqual(targets, []);
