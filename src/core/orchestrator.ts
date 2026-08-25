@@ -106,6 +106,8 @@ export class Orchestrator {
   private ticking = false;
   private botLogin = 'issue-auto-solve[bot]';
   private paused: boolean;
+  /** Held by the auto-updater once an image update is available, until every in-flight run has drained. */
+  private updateHold = false;
   /**
    * `failed`/`skipped` tasks are re-checked against GitHub on `reconcile_terminal_interval_seconds`
    * rather than on every tick: re-checking the whole failed/skipped backlog every tick scales
@@ -168,7 +170,7 @@ export class Orchestrator {
   }
 
   get dispatching(): boolean {
-    return this.config.dispatch_enabled && !this.paused;
+    return this.config.dispatch_enabled && !this.paused && !this.updateHold;
   }
 
   /** Pausing stops new claims from being picked up; runs already in flight finish on their own. */
@@ -181,6 +183,16 @@ export class Orchestrator {
     this.paused = false;
     this.store.setMeta('dispatch_paused', '0');
     void this.tick();
+  }
+
+  /**
+   * Called by the auto-updater once it sees a new image: holding dispatch stops new claude
+   * runs from starting while it waits for the current ones to finish before restarting.
+   * Runs already in flight are left alone and finish on their own, same as `pause()`.
+   */
+  setUpdateHold(hold: boolean): void {
+    this.updateHold = hold;
+    if (!hold) void this.tick();
   }
 
   private recoverInterrupted(): void {

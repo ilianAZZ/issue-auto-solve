@@ -43,6 +43,7 @@ export interface RepoOverview {
 export interface AutoUpdateStatus {
   enabled: boolean;
   checking: boolean;
+  restart_pending: boolean;
   last_checked_at: string | null;
   update_available: boolean;
   current_image: string | null;
