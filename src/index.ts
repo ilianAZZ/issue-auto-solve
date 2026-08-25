@@ -27,7 +27,13 @@ async function main() {
   const credentials = new Credentials(env, secrets);
   const orchestrator = new Orchestrator(env, config, store, credentials);
   orchestrator.seedRepositories();
-  const autoUpdater = new AutoUpdater(store, config.auto_update.check_interval_hours, () => orchestrator.busy > 0, config.auto_update.enabled);
+  const autoUpdater = new AutoUpdater(
+    store,
+    config.auto_update.check_interval_hours,
+    () => orchestrator.busy > 0,
+    config.auto_update.enabled,
+    (hold) => orchestrator.setUpdateHold(hold),
+  );
 
   const dashboardToken = resolveDashboardToken(env.DASHBOARD_TOKEN, join(resolve(env.STATE_DIR), 'dashboard.token'));
   const server = await createServer(env, store, orchestrator, credentials, dashboardToken, autoUpdater);
