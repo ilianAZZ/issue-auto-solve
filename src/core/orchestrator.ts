@@ -840,6 +840,11 @@ export class Orchestrator {
     return this.gh().access(fullName);
   }
 
+  /** Every repository the configured credentials can see, for the dashboard's repo picker. */
+  async listRepos(): Promise<string[]> {
+    return this.gh().listAccessibleRepos();
+  }
+
   private contextFor(task: TaskRow): RepoContext | undefined {
     return [...this.contexts.values()].find((context) => context.id === task.repo_id);
   }
