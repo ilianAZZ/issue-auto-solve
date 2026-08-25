@@ -57,6 +57,8 @@ export interface Overview {
   capacity: number;
   last_tick_at: string | null;
   claude_token_invalid: boolean;
+  usage_limit_active: boolean;
+  usage_limit_retry_at: string | null;
   auto_update: AutoUpdateStatus;
   counts: OverviewCounts;
   usage: Usage;

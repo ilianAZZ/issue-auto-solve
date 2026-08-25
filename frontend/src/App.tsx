@@ -11,6 +11,7 @@ import { SetupOverlay } from './components/SetupOverlay';
 import { LoginScreen } from './components/LoginScreen';
 import { ErrorBanner } from './components/ErrorBanner';
 import { ClaudeTokenAlert } from './components/ClaudeTokenAlert';
+import { UsageLimitAlert } from './components/UsageLimitAlert';
 import { Footer } from './components/Footer';
 import { DEFAULT_STATE_FILTERS } from './lib/constants';
 import type { TaskFilters } from './types';
@@ -46,6 +47,7 @@ export default function App() {
     <>
       <ErrorBanner />
       {overview.data?.claude_token_invalid && <ClaudeTokenAlert onOpenSetup={() => setSetupOpen(true)} />}
+      {overview.data?.usage_limit_active && <UsageLimitAlert retryAt={overview.data.usage_limit_retry_at} />}
       <Header onOpenSetup={() => setSetupOpen(true)} />
       <main className="mx-auto max-w-[1180px] px-6 py-6">
         <StatsGrid filters={filters} onChange={setFilters} />

@@ -76,6 +76,8 @@ export async function createServer(
       capacity: orchestrator.capacity,
       last_tick_at: store.meta('last_tick_at'),
       claude_token_invalid: store.meta('claude_token_invalid') === '1',
+      usage_limit_active: store.meta('usage_limit_active') === '1',
+      usage_limit_retry_at: store.meta('usage_limit_retry_at'),
       auto_update: autoUpdater.status(),
       counts,
       usage: store.usageSummary(),
