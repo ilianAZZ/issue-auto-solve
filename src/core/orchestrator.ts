@@ -416,14 +416,22 @@ export class Orchestrator {
     for (const context of this.contexts.values()) {
       while (this.inflight.size < this.config.max_concurrent_runs) {
         if (this.store.countActive(context.id) >= context.settings.limits.max_concurrent_runs) break;
-        const candidate = this.store
-          .claimable(
-            context.id,
-            context.settings.labels.exclude,
-            context.settings.selection.order,
-            context.settings.selection.priority_labels,
-          )
-          .find((task) => task.run_count < context.settings.limits.max_runs_per_task);
+        const queued = this.store.claimable(
+          context.id,
+          context.settings.labels.exclude,
+          context.settings.selection.order,
+          context.settings.selection.priority_labels,
+        );
+        // A task can land back in `discovered` with run_count already at the limit — requeued
+        // by hand from the dashboard, or by resumeRetries() after a usage-limit delay — and
+        // would otherwise sit there forever, silently skipped by every future tick with nothing
+        // on the dashboard explaining why. Failing it here instead makes that visible.
+        for (const stale of queued.filter((task) => task.run_count >= context.settings.limits.max_runs_per_task)) {
+          const reason = `exceeded max_runs_per_task (${context.settings.limits.max_runs_per_task}); use Force run to override`;
+          this.store.transition(stale.id, 'failed', { reason }, reason);
+          log.info(`#${stale.number} on ${context.fullName} ${reason}`);
+        }
+        const candidate = queued.find((task) => task.run_count < context.settings.limits.max_runs_per_task);
         if (!candidate) break;
         let claimed: TaskRow | null;
         try {

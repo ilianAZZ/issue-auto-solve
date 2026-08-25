@@ -17,7 +17,7 @@ export type TaskState = (typeof TASK_STATES)[number];
 // after an attempt) can be reconciled into pr_open or merged whenever GitHub disagrees
 // with the last known state, not just moved forward through a fixed pipeline.
 const transitions: Record<TaskState, TaskState[]> = {
-  discovered: ['claimed', 'skipped', 'waiting_human', 'needs_approval', 'pr_open', 'merged'],
+  discovered: ['claimed', 'skipped', 'failed', 'waiting_human', 'needs_approval', 'pr_open', 'merged'],
   needs_approval: ['discovered', 'skipped'],
   claimed: ['running', 'discovered', 'failed'],
   running: ['pr_open', 'waiting_human', 'failed', 'skipped', 'discovered', 'merged'],
