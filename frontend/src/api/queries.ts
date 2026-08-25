@@ -143,6 +143,17 @@ export function useRepoConditions(fullName: string) {
   });
 }
 
+// Every repository the configured GitHub credentials can see, for the repo picker in the
+// "add a repository" panel and the notification rule editor.
+export function useAvailableRepos() {
+  return useQuery({
+    queryKey: ['available-repos'],
+    queryFn: () => api.get<string[]>('/api/github/repos', { silent: true }),
+    staleTime: 60_000,
+    retry: false,
+  });
+}
+
 export function useRemoveRepo() {
   return useSetupMutation((fullName: string) => api.delete(`/api/repos/${fullName}`));
 }

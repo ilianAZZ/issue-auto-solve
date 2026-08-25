@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
-import { useRepoConditions } from '../api/queries';
+import { useAvailableRepos, useRepoConditions } from '../api/queries';
 import { AUTHOR_ASSOCIATIONS } from '../lib/constants';
 import type { RepoSettingsForm } from '../types';
 import { Button } from './ui/Button';
 import { ChipList } from './ui/ChipList';
+import { Combobox } from './ui/Combobox';
 
 const emptySettings: RepoSettingsForm = {
   selection: {
@@ -45,6 +46,7 @@ export function AddRepoModal({
   const repoValid = /^[^/\s]+\/[^/\s]+$/.test(trimmed);
   const conditions = useRepoConditions(repoValid ? trimmed : '');
   const groups = conditions.data?.groups ?? AUTHOR_ASSOCIATIONS;
+  const availableRepos = useAvailableRepos();
 
   const { selection, prompt } = settings;
 
@@ -94,14 +96,20 @@ export function AddRepoModal({
           keeps the default, open behaviour.
         </p>
 
-        <Field label="Repository" hint='owner/name, e.g. "acme/breem"'>
-          <input
+        <Field label="Repository" hint='Pick from what the app can see, or type "owner/name" by hand.'>
+          <Combobox
             autoFocus
             value={repo}
-            onChange={(e) => setRepo(e.target.value)}
+            onChange={setRepo}
+            options={availableRepos.data ?? []}
+            loading={availableRepos.isLoading}
             placeholder="owner/name"
-            className="w-full rounded-lg border border-border bg-panel-2 p-2 text-[13px] text-text"
           />
+          {availableRepos.isError && (
+            <p className="mt-1 text-[11.5px] text-muted">
+              Could not list your repositories — type the repository below instead.
+            </p>
+          )}
           {repoValid && conditions.isError && (
             <p className="mt-1 text-[11.5px] text-muted">
               Could not read labels/collaborators yet — the GitHub App may not be installed on it. You can still

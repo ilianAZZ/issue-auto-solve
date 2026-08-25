@@ -120,6 +120,17 @@ export function registerSetup(
     return { ok: true };
   });
 
+  // Feeds the repo picker in "add a repository" and the notification rule editor with real
+  // repositories the configured credentials can see, instead of a free-text "owner/name" field.
+  app.get('/api/github/repos', async (_request, reply) => {
+    if (!credentials.github()) return [];
+    try {
+      return await orchestrator.listRepos();
+    } catch (error) {
+      return reply.code(502).send({ error: String(error) });
+    }
+  });
+
   app.get('/api/repos', async () =>
     store.repos().map((repo) => ({
       full_name: repo.full_name,

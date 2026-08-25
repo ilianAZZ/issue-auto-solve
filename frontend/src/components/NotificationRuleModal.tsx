@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useAvailableRepos } from '../api/queries';
 import { LABELS, STATES } from '../lib/constants';
 import type { NotificationRule, NotificationRuleInput, NotificationTarget, NotificationTargetType, TaskState } from '../types';
 import { Button } from './ui/Button';
@@ -36,6 +37,7 @@ export function NotificationRuleModal({
   );
   const [targetType, setTargetType] = useState<NotificationTargetType>('discord');
   const [targetUrl, setTargetUrl] = useState('');
+  const availableRepos = useAvailableRepos();
 
   function toggleStatus(state: TaskState) {
     const next = input.statuses.includes(state) ? input.statuses.filter((s) => s !== state) : [...input.statuses, state];
@@ -95,7 +97,12 @@ export function NotificationRuleModal({
         </Field>
 
         <Field label="Repositories" hint="Empty matches every watched repository.">
-          <ChipList value={input.repos} onChange={(repos) => setInput((s) => ({ ...s, repos }))} placeholder="owner/name" />
+          <ChipList
+            value={input.repos}
+            onChange={(repos) => setInput((s) => ({ ...s, repos }))}
+            suggestions={availableRepos.data}
+            placeholder="owner/name"
+          />
         </Field>
 
         <Field label="Statuses" hint="Empty matches every status.">

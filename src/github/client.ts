@@ -38,6 +38,29 @@ export class GitHub {
     return this.identity;
   }
 
+  /** Every repository the current credentials can see — feeds the dashboard's repo picker. */
+  async listAccessibleRepos(): Promise<string[]> {
+    if (this.credentials.mode === 'token') {
+      const repos = await this.app.paginate(this.app.repos.listForAuthenticatedUser, {
+        per_page: 100,
+        affiliation: 'owner,collaborator,organization_member',
+      });
+      return repos.map((repo) => repo.full_name).sort();
+    }
+
+    const installations = await this.app.paginate(this.app.apps.listInstallations, { per_page: 100 });
+    const names = new Set<string>();
+    for (const installation of installations) {
+      const { data } = await this.app.apps.createInstallationAccessToken({ installation_id: installation.id });
+      const installationClient = new Octokit({ auth: data.token });
+      const repos = await installationClient.paginate(installationClient.apps.listReposAccessibleToInstallation, {
+        per_page: 100,
+      });
+      for (const repo of repos) names.add(repo.full_name);
+    }
+    return [...names].sort();
+  }
+
   async access(fullName: string): Promise<RepoAccess> {
     const [owner, name] = fullName.split('/');
     if (!owner || !name) throw new Error(`invalid repository "${fullName}", expected "owner/name"`);
