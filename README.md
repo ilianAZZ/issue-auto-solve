@@ -8,6 +8,8 @@ eligible issue, runs Claude Code against it in a disposable container, opens a p
 request — and when the agent has to ask you something, it parks the issue and picks it
 back up the moment you reply.
 
+![Dashboard](docs/images/dashboard.png)
+
 ```
 ┌──────────────┐   poll / webhook   ┌──────────────┐   docker run   ┌─────────────┐
 │  GitHub      │ ─────────────────► │  issue-auto-solve   │ ─────────────► │  claude -p  │
@@ -34,6 +36,19 @@ itself instead of asking the agent to re-derive it from the issue on every run.
 A question is answered when a comment posted **after** the agent's question comes from
 somebody other than the agent. That is why the GitHub App mode matters: with a personal
 token the agent writes under your own login and no rule can tell the two apart.
+
+## What it's not
+
+- **It does not open issues.** It only works ones that already exist — triage and
+  prioritization stay yours.
+- **It does not merge pull requests, approve them, or push to your default branch.**
+  It opens a branch and a PR; a human merges it.
+- **It is not a hosted service.** It runs on your own machine or server, against only
+  the repositories you list — nothing about your code leaves it except what the agent
+  reads and writes through the GitHub API.
+- **It is not a sandboxed playground.** The agent runs with real repository write
+  access and, if you enable it, the Docker socket — see [SECURITY.md](SECURITY.md)
+  before pointing it at anything that matters.
 
 ## Quick start
 
@@ -74,6 +89,15 @@ backlog without ever starting a run. Flip it once the dashboard shows what you e
 Point the GitHub App webhook at `POST /webhooks/github` (`issues`, `issue_comment`,
 `pull_request`) if you want reactions in seconds instead of at the next poll. Webhooks
 are an accelerator, never a requirement: polling alone is enough.
+
+### Cost
+
+issue-auto-solve itself is free and self-hosted: no subscription, no per-repository fee.
+What you pay for is Claude Code's usage while it works an issue, billed against the
+Agent SDK credit of your Claude plan rather than the interactive pool — check that
+before pointing it at several repositories with a busy backlog. The GitHub side costs
+nothing: the App and its tokens are free. The dashboard shows running cost per repository
+once runs start reporting it.
 
 ## Configuring a repository
 
