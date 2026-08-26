@@ -16,8 +16,16 @@ export interface Location {
   search: string;
 }
 
+// useSyncExternalStore compares snapshots by reference, so this must keep returning the
+// same object as long as the URL hasn't actually changed, or React re-renders forever.
+let cached: Location = { pathname: window.location.pathname, search: window.location.search };
+
 export function getLocation(): Location {
-  return { pathname: window.location.pathname, search: window.location.search };
+  const { pathname, search } = window.location;
+  if (cached.pathname !== pathname || cached.search !== search) {
+    cached = { pathname, search };
+  }
+  return cached;
 }
 
 export function navigate(url: string, { replace = false }: { replace?: boolean } = {}): void {
