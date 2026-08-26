@@ -17,12 +17,7 @@ docker compose -f docker-compose.prod.yml up -d
 docker compose -f docker-compose.prod.yml logs | grep 'dashboard on'
 ```
 
-While the repository is private, the image is too: log in first with a token carrying
-`read:packages`.
-
-```bash
-echo $GHCR_TOKEN | docker login ghcr.io -u <you> --password-stdin
-```
+The image is public — no `docker login` needed to pull it.
 
 Updating later is `docker compose -f docker-compose.prod.yml pull && … up -d`. No
 configuration file is required: the image ships the defaults and the rest is done from the
