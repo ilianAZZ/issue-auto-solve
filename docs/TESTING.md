@@ -66,16 +66,17 @@ base_branch: main
 runtime:
   image: node:24-slim
   setup:
-    - apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates
+    - apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates gnupg
+    - install -d -m 755 /etc/apt/keyrings && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o /etc/apt/keyrings/githubcli-archive-keyring.gpg && chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list && apt-get update && apt-get install -y --no-install-recommends gh
     - npm install -g @anthropic-ai/claude-code
 checks:
   - name: nothing to run here
     run: "true"
 ```
 
-The image must contain `git`, `gh` if your prompt uses it, and the `claude` binary.
-Installing Claude Code in `setup` on every run is fine to start with; bake it into your
-own image once it works.
+The image must contain `git`, `gh` (the default prompt uses it for issue comments and pull
+requests), and the `claude` binary. Installing Claude Code in `setup` on every run is fine
+to start with; bake it into your own image once it works.
 
 3. **Start with dispatch on:**
 

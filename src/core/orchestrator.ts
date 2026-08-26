@@ -241,13 +241,18 @@ export class Orchestrator {
     }
   }
 
+  /**
+   * Re-resolved every tick, not just the first time a repo is seen: `.issue-auto-solve.yml`
+   * lives in the repository itself, so a maintainer can change it (e.g. the runtime image)
+   * with a plain commit, and that has to take effect on its own — without an operator
+   * happening to touch the dashboard to trigger reload().
+   */
   private async loadRepositories(): Promise<void> {
     for (const row of this.store.repos()) {
       if (!row.enabled) {
         this.contexts.delete(row.full_name);
         continue;
       }
-      if (this.contexts.has(row.full_name)) continue;
       const overrides = JSON.parse(row.settings_json || '{}') as { config_path?: string };
       try {
         const access = await this.gh().access(row.full_name);
@@ -255,9 +260,12 @@ export class Orchestrator {
         const configPath = overrides.config_path ?? this.config.defaults.config_path ?? '.issue-auto-solve.yml';
         const file = await fetchRepoFile(access, configPath);
         const settings = resolveRepoSettings(this.config, overrides, file, row.full_name);
+        const previous = this.contexts.get(row.full_name);
         this.contexts.set(row.full_name, { id: row.id, fullName: row.full_name, settings });
         this.store.setRepoError(row.id, null);
-        log.info(`watching ${row.full_name}`, { base: settings.base_branch, configured: Boolean(file) });
+        if (!previous || JSON.stringify(previous.settings) !== JSON.stringify(settings)) {
+          log.info(`watching ${row.full_name}`, { base: settings.base_branch, configured: Boolean(file) });
+        }
       } catch (error) {
         this.store.setRepoError(row.id, String(error));
         log.error(`cannot watch ${row.full_name}`, { error: String(error) });
