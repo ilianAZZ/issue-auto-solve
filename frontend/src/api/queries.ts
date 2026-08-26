@@ -49,12 +49,15 @@ export function useTask(id: number | null) {
   });
 }
 
-export function useRunLog(runId: number | null) {
+const LOG_POLL_MS = 2000;
+
+export function useRunLog(runId: number | null, live: boolean) {
   return useQuery({
     queryKey: ['run-log', runId],
     queryFn: () => api.get<string>(`/api/runs/${runId}/log`, { silent: true }),
     enabled: runId != null,
     retry: false,
+    refetchInterval: live ? LOG_POLL_MS : false,
   });
 }
 
