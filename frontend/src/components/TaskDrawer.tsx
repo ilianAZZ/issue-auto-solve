@@ -2,12 +2,13 @@ import { useEffect } from 'react';
 import { useRunLog, useTask, useTaskAction } from '../api/queries';
 import { ago, cost, duration, tokens } from '../lib/format';
 import { Pill } from './Pill';
+import { RunLogView } from './RunLogView';
 import { Button, LinkButton } from './ui/Button';
 
 export function TaskDrawer({ taskId, onClose }: { taskId: number; onClose: () => void }) {
   const { data } = useTask(taskId);
   const run = data?.runs[0];
-  const { data: log, isError: logFailed } = useRunLog(run?.id ?? null);
+  const { data: log, isError: logFailed } = useRunLog(run?.id ?? null, run?.status === 'running');
   const action = useTaskAction();
 
   useEffect(() => {
@@ -138,10 +139,9 @@ export function TaskDrawer({ taskId, onClose }: { taskId: number; onClose: () =>
               </ul>
             </>
           )}
-          <h3 className="mt-4.5 mb-2 text-[11.5px] font-semibold tracking-wide text-muted uppercase">Last run</h3>
-          <pre className="max-h-[46vh] overflow-auto rounded-[10px] border border-border bg-panel-2 p-3.5 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap text-muted">
-            {run ? (logFailed ? 'Log not available.' : (log ?? 'Loading…')) : 'No run yet.'}
-          </pre>
+          <div className="mt-4.5">
+            <RunLogView log={log} hasRun={Boolean(run)} failed={logFailed} />
+          </div>
         </div>
       </aside>
     </>
