@@ -29,16 +29,19 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 }
 
 export function AddRepoModal({
+  initial,
   onCancel,
   onConfirm,
   pending,
 }: {
+  initial?: { repo: string; settings: RepoSettingsForm };
   onCancel: () => void;
   onConfirm: (repo: string, settings: RepoSettingsForm) => void;
   pending: boolean;
 }) {
-  const [repo, setRepo] = useState('');
-  const [settings, setSettings] = useState<RepoSettingsForm>(emptySettings);
+  const editing = Boolean(initial);
+  const [repo, setRepo] = useState(initial?.repo ?? '');
+  const [settings, setSettings] = useState<RepoSettingsForm>(initial?.settings ?? emptySettings);
   const [varKey, setVarKey] = useState('');
   const [varValue, setVarValue] = useState('');
 
@@ -90,25 +93,31 @@ export function AddRepoModal({
         className="max-h-[90vh] w-full max-w-xl overflow-auto rounded-xl border border-border bg-panel p-5 shadow-[0_1px_2px_rgba(16,16,24,.06),0_8px_24px_rgba(16,16,24,.06)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="mt-0 mb-1.5 text-[15px] font-semibold">Add a repository</h2>
+        <h2 className="mt-0 mb-1.5 text-[15px] font-semibold">{editing ? `Configure ${initial?.repo}` : 'Add a repository'}</h2>
         <p className="mt-0 mb-4 text-[13px] text-muted">
           Who can trigger the agent and which tags gate it — set once here, per repository. Anything left empty
           keeps the default, open behaviour.
         </p>
 
-        <Field label="Repository" hint='Pick from what the app can see, or type "owner/name" by hand.'>
-          <Combobox
-            autoFocus
-            value={repo}
-            onChange={setRepo}
-            options={availableRepos.data ?? []}
-            loading={availableRepos.isLoading}
-            placeholder="owner/name"
-          />
-          {availableRepos.isError && (
-            <p className="mt-1 text-[11.5px] text-muted">
-              Could not list your repositories — type the repository below instead.
-            </p>
+        <Field label="Repository" hint={editing ? undefined : 'Pick from what the app can see, or type "owner/name" by hand.'}>
+          {editing ? (
+            <div className="rounded-lg border border-border bg-panel-2 p-2 text-[13px] text-text">{repo}</div>
+          ) : (
+            <>
+              <Combobox
+                autoFocus
+                value={repo}
+                onChange={setRepo}
+                options={availableRepos.data ?? []}
+                loading={availableRepos.isLoading}
+                placeholder="owner/name"
+              />
+              {availableRepos.isError && (
+                <p className="mt-1 text-[11.5px] text-muted">
+                  Could not list your repositories — type the repository below instead.
+                </p>
+              )}
+            </>
           )}
           {repoValid && conditions.isError && (
             <p className="mt-1 text-[11.5px] text-muted">
@@ -232,7 +241,7 @@ export function AddRepoModal({
         <div className="mt-4 flex justify-end gap-2">
           <Button onClick={onCancel}>Cancel</Button>
           <Button variant="primary" onClick={submit} disabled={!repoValid || pending}>
-            Add repository
+            {editing ? 'Save changes' : 'Add repository'}
           </Button>
         </div>
       </div>

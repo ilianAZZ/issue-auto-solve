@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  useAddRepo,
+  useSaveRepo,
   useAutoUpdateAction,
   useBootstrapRepo,
   useCreateNotificationRule,
@@ -16,7 +16,7 @@ import {
 } from '../api/queries';
 import { ago } from '../lib/format';
 import { LABELS } from '../lib/constants';
-import type { NotificationRule, RepoSettingsForm } from '../types';
+import type { NotificationRule, RepoSetup, RepoSettingsForm } from '../types';
 import { Button } from './ui/Button';
 import { BootstrapModal } from './BootstrapModal';
 import { AddRepoModal } from './AddRepoModal';
@@ -40,7 +40,7 @@ export function SetupOverlay({ onClose }: { onClose: () => void }) {
   const overview = useOverview();
   const saveGithubToken = useSaveGithubToken();
   const saveClaudeToken = useSaveClaudeToken();
-  const addRepo = useAddRepo();
+  const saveRepo = useSaveRepo();
   const removeRepo = useRemoveRepo();
   const bootstrapRepo = useBootstrapRepo();
   const autoUpdateAction = useAutoUpdateAction();
@@ -55,6 +55,7 @@ export function SetupOverlay({ onClose }: { onClose: () => void }) {
   const [ghToken, setGhToken] = useState('');
   const [clToken, setClToken] = useState('');
   const [addingRepo, setAddingRepo] = useState(false);
+  const [configuringRepo, setConfiguringRepo] = useState<RepoSetup | null>(null);
   const [bootstrapTarget, setBootstrapTarget] = useState<string | null>(null);
   const [editingRule, setEditingRule] = useState<NotificationRule | 'new' | null>(null);
 
@@ -76,9 +77,17 @@ export function SetupOverlay({ onClose }: { onClose: () => void }) {
     }
   }
 
-  function addRepoNow(repo: string, form: RepoSettingsForm) {
+  function saveRepoSettings(repo: string, form: RepoSettingsForm) {
     const settings = { ...form, prompt: { ...form.prompt, file: form.prompt.file.trim() || null } };
-    addRepo.mutate({ repo, settings }, { onSuccess: () => setAddingRepo(false) });
+    saveRepo.mutate(
+      { repo, settings },
+      {
+        onSuccess: () => {
+          setAddingRepo(false);
+          setConfiguringRepo(null);
+        },
+      },
+    );
   }
 
   return (
@@ -215,6 +224,7 @@ export function SetupOverlay({ onClose }: { onClose: () => void }) {
                       'never synced'
                     )}
                   </span>
+                  <Button onClick={() => setConfiguringRepo(repo)}>Configure</Button>
                   <Button onClick={() => setBootstrapTarget(repo.full_name)}>Generate config</Button>
                   <Button onClick={() => removeRepo.mutate(repo.full_name)} disabled={removeRepo.isPending}>
                     Remove
@@ -335,7 +345,16 @@ export function SetupOverlay({ onClose }: { onClose: () => void }) {
       )}
 
       {addingRepo && (
-        <AddRepoModal onCancel={() => setAddingRepo(false)} onConfirm={addRepoNow} pending={addRepo.isPending} />
+        <AddRepoModal onCancel={() => setAddingRepo(false)} onConfirm={saveRepoSettings} pending={saveRepo.isPending} />
+      )}
+
+      {configuringRepo && (
+        <AddRepoModal
+          initial={{ repo: configuringRepo.full_name, settings: configuringRepo.settings }}
+          onCancel={() => setConfiguringRepo(null)}
+          onConfirm={saveRepoSettings}
+          pending={saveRepo.isPending}
+        />
       )}
 
       {editingRule && (

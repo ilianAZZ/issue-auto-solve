@@ -128,7 +128,7 @@ export function useSaveClaudeToken() {
   return useSetupMutation((token: string) => api.post('/api/setup/claude', { token }));
 }
 
-export function useAddRepo() {
+export function useSaveRepo() {
   return useSetupMutation(({ repo, settings }: { repo: string; settings: RepoSettingsInput }) =>
     api.post('/api/repos', { repo, settings }),
   );
