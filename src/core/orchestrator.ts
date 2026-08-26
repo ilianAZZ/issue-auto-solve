@@ -24,6 +24,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 // Claude Code prints this and exits before doing anything else, so it always shows up
 // near the end of a short log — a tail read is enough and keeps this cheap on big logs.
 const CLAUDE_AUTH_ERROR_MARKER = 'OAuth access token is invalid';
+// How far behind wall-clock time to back the issue-sync cursor off, to absorb GitHub's
+// issue-list indexing lag (see syncIssues()).
+const SYNC_CURSOR_SAFETY_MARGIN_MS = 10_000;
 // Printed when the account's Claude usage limit is hit, followed by the unix seconds the
 // limit resets at, e.g. "Claude AI usage limit reached|1735056000".
 const CLAUDE_USAGE_LIMIT_PATTERN = /Claude AI usage limit reached\|(\d+)/i;
@@ -339,7 +342,12 @@ export class Orchestrator {
   private async syncIssues(): Promise<void> {
     for (const context of this.contexts.values()) {
       const repo = this.store.repos().find((r) => r.id === context.id);
-      const cursor = now();
+      // GitHub's issue-list index can lag a few seconds behind a write, so an issue created
+      // right before this tick can be missing from `issues` below even though its updated_at
+      // is already older than "now". Saving `now()` as the next cursor would then exclude it
+      // from every future `since` query forever, since its updated_at never changes again.
+      // Backing the cursor off by a safety margin makes the next tick re-check that window.
+      const cursor = new Date(Date.now() - SYNC_CURSOR_SAFETY_MARGIN_MS).toISOString();
       try {
         const access = await this.gh().access(context.fullName);
         const issues = await listUpdatedIssues(access, repo?.last_sync_at ?? null);
