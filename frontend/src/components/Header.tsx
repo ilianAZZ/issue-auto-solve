@@ -21,18 +21,18 @@ export function Header({ onOpenSetup }: { onOpenSetup: () => void }) {
   const tickText = data ? `last tick ${ago(data.last_tick_at)} ago` : '–';
 
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between gap-4 border-b border-border bg-bg/90 px-6 py-3.5 backdrop-blur-md backdrop-saturate-150">
+    <header className="sticky top-0 z-30 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-bg/90 px-4 py-3.5 backdrop-blur-md backdrop-saturate-150 sm:px-6">
       <div className="flex items-center gap-2.5 font-semibold tracking-tight">
         <span className="text-lg">🔁</span>
         <span>issue-auto-solve</span>
       </div>
-      <div className="flex items-center gap-2 text-[13px] text-muted">
+      <div className="flex flex-wrap items-center gap-2 text-[13px] text-muted">
         <span className={`h-2 w-2 rounded-full ${DOT_CLASSES[dotState] ?? 'bg-muted'}`} />
         <span>{statusText}</span>
         <span className="opacity-40">·</span>
         <span>{capacityText}</span>
-        <span className="opacity-40">·</span>
-        <span>{tickText}</span>
+        <span className="opacity-40 max-sm:hidden">·</span>
+        <span className="max-sm:hidden">{tickText}</span>
         <Button
           onClick={() => dispatchAction.mutate(data?.dispatching ? 'pause' : 'resume')}
           disabled={!data || dispatchAction.isPending}

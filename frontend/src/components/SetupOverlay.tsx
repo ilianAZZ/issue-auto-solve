@@ -91,8 +91,8 @@ export function SetupOverlay({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 overflow-auto bg-bg">
-      <div className="mx-auto max-w-[760px] px-6 pt-12 pb-16">
+    <div className="fixed inset-0 z-50 overflow-auto overscroll-contain bg-bg">
+      <div className="mx-auto max-w-[760px] px-4 pt-10 pb-16 sm:px-6 sm:pt-12">
         <h1 className="mt-0 mb-1 text-2xl tracking-tight">Set up issue-auto-solve</h1>
         <p className="mt-0 mb-7 text-muted">Three things, once. Nothing here needs a text editor.</p>
 
@@ -207,7 +207,7 @@ export function SetupOverlay({ onClose }: { onClose: () => void }) {
           <ul className="my-2 mb-3 list-none p-0">
             {repos.data?.length ? (
               repos.data.map((repo) => (
-                <li key={repo.full_name} className="flex items-center gap-2.5 border-b border-border py-2.5 text-[13px] last:border-0">
+                <li key={repo.full_name} className="flex flex-wrap items-center gap-2.5 border-b border-border py-2.5 text-[13px] last:border-0">
                   <span className="flex-1 font-medium">{repo.full_name}</span>
                   <span className="text-[11.5px] text-muted">
                     {repo.last_error ? (
@@ -307,7 +307,7 @@ export function SetupOverlay({ onClose }: { onClose: () => void }) {
           <ul className="my-2 mb-3 list-none p-0">
             {notificationRules.data?.length ? (
               notificationRules.data.map((rule) => (
-                <li key={rule.id} className="flex items-center gap-2.5 border-b border-border py-2.5 text-[13px] last:border-0">
+                <li key={rule.id} className="flex flex-wrap items-center gap-2.5 border-b border-border py-2.5 text-[13px] last:border-0">
                   <span className="flex-1">
                     <span className="font-medium">{rule.name}</span>
                     {!rule.enabled && <span className="ml-2 text-[11.5px] text-muted">disabled</span>}

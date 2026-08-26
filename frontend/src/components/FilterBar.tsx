@@ -45,11 +45,11 @@ export function FilterBar({ filters, onChange }: { filters: TaskFilters; onChang
           );
         })}
       </div>
-      <div className="flex gap-2">
+      <div className="flex w-full flex-wrap gap-2 sm:w-auto">
         <select
           value={filters.repo}
           onChange={(e) => onChange({ ...filters, repo: e.target.value })}
-          className="min-w-[190px] rounded-lg border border-border bg-panel px-2.5 py-1.5 text-[13px] text-text focus:outline-2 focus:outline-accent/45"
+          className="min-w-[190px] flex-1 rounded-lg border border-border bg-panel px-2.5 py-1.5 text-[13px] text-text focus:outline-2 focus:outline-accent/45 sm:flex-initial"
         >
           <option value="">All repositories</option>
           {data?.repos.map((repo) => (
@@ -64,7 +64,7 @@ export function FilterBar({ filters, onChange }: { filters: TaskFilters; onChang
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Filter by number or title…"
           spellCheck={false}
-          className="min-w-[190px] rounded-lg border border-border bg-panel px-2.5 py-1.5 text-[13px] text-text focus:outline-2 focus:outline-accent/45"
+          className="min-w-[190px] flex-1 rounded-lg border border-border bg-panel px-2.5 py-1.5 text-[13px] text-text focus:outline-2 focus:outline-accent/45 sm:flex-initial"
         />
       </div>
     </section>

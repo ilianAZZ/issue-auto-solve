@@ -90,7 +90,7 @@ export function AddRepoModal({
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={onCancel}>
       <div
-        className="max-h-[90vh] w-full max-w-xl overflow-auto rounded-xl border border-border bg-panel p-5 shadow-[0_1px_2px_rgba(16,16,24,.06),0_8px_24px_rgba(16,16,24,.06)]"
+        className="max-h-[90vh] w-full max-w-xl overflow-auto overscroll-contain rounded-xl border border-border bg-panel p-4 shadow-[0_1px_2px_rgba(16,16,24,.06),0_8px_24px_rgba(16,16,24,.06)] sm:p-5"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="mt-0 mb-1.5 text-[15px] font-semibold">{editing ? `Configure ${initial?.repo}` : 'Add a repository'}</h2>
