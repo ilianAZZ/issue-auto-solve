@@ -38,7 +38,7 @@ export function RunLogView({ log, hasRun, failed }: { log: string | undefined; h
       <div className="relative">
         <div
           ref={scrollRef}
-          className="max-h-[46vh] overflow-auto rounded-[10px] border border-border bg-panel-2 p-3.5 font-mono text-xs leading-relaxed text-muted"
+          className="max-h-[46vh] overflow-auto overscroll-contain rounded-[10px] border border-border bg-panel-2 p-3.5 font-mono text-xs leading-relaxed text-muted"
         >
           {!hasRun ? (
             'No run yet.'

@@ -31,13 +31,13 @@ export function TaskDrawer({ taskId, onClose }: { taskId: number; onClose: () =>
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/30" onClick={onClose} />
-      <aside className="animate-[slide-in_0.16s_ease-out] fixed top-0 right-0 bottom-0 z-50 flex w-[min(680px,92vw)] flex-col border-l border-border bg-panel shadow-[0_1px_2px_rgba(16,16,24,.06),0_8px_24px_rgba(16,16,24,.06)]">
-        <div className="flex items-start justify-between gap-4 px-5 pt-4.5 pb-3">
-          <div>
-            <div className="text-[16px] font-semibold tracking-tight">
+      <aside className="animate-[slide-in_0.16s_ease-out] fixed top-0 right-0 bottom-0 z-50 flex w-full flex-col border-l border-border bg-panel shadow-[0_1px_2px_rgba(16,16,24,.06),0_8px_24px_rgba(16,16,24,.06)] sm:w-[min(680px,92vw)]">
+        <div className="flex items-start justify-between gap-4 px-4 pt-4.5 pb-3 sm:px-5">
+          <div className="min-w-0">
+            <div className="truncate text-[16px] font-semibold tracking-tight">
               {data ? `#${data.task.number} ${data.task.title}` : '–'}
             </div>
-            <div className="mt-0.5 flex items-center gap-1.5 text-[12.5px] text-muted">
+            <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[12.5px] text-muted">
               {data ? (
                 <>
                   <Pill state={data.task.state} />
@@ -57,7 +57,7 @@ export function TaskDrawer({ taskId, onClose }: { taskId: number; onClose: () =>
             ✕
           </Button>
         </div>
-        <div className="flex flex-wrap gap-2 border-b border-border px-5 pb-3.5">
+        <div className="flex flex-wrap gap-2 border-b border-border px-4 pb-3.5 sm:px-5">
           {data && (
             <>
               <LinkButton href={data.task.url} target="_blank" rel="noreferrer">
@@ -99,7 +99,7 @@ export function TaskDrawer({ taskId, onClose }: { taskId: number; onClose: () =>
             </>
           )}
         </div>
-        <div className="overflow-auto px-5 pt-4 pb-7">
+        <div className="overflow-auto overscroll-contain px-4 pt-4 pb-7 sm:px-5">
           <h3 className="mt-0 mb-2 text-[11.5px] font-semibold tracking-wide text-muted uppercase">Timeline</h3>
           <ol className="m-0 border-l border-border p-0 pl-3.5">
             {data?.events.map((event) => (

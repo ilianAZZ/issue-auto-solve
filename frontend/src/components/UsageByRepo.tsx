@@ -17,34 +17,36 @@ export function UsageByRepo() {
       <h3 className="border-b border-border bg-panel-2 px-4 py-2.5 text-[11.5px] font-semibold tracking-wide text-muted uppercase">
         Claude usage by repository
       </h3>
-      <table className="w-full border-collapse">
-        <tbody>
-          {rows.map((repo) => {
-            const usage = repo.usage!;
-            const pct = totalCost > 0 ? (usage.cost_usd / totalCost) * 100 : 0;
-            return (
-              <tr key={repo.full_name} className="border-b border-border last:border-0">
-                <td className="px-4 py-2.5 align-middle whitespace-nowrap">{repo.full_name}</td>
-                <td className="w-full px-4 py-2.5 align-middle">
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-panel-2">
-                    <div className="h-full rounded-full bg-accent" style={{ width: `${Math.max(pct, 2)}%` }} />
-                  </div>
-                </td>
-                <td className="px-4 py-2.5 text-right align-middle font-[tabular-nums] text-muted whitespace-nowrap">
-                  {pct.toFixed(0)}%
-                </td>
-                <td className="px-4 py-2.5 text-right align-middle font-[tabular-nums] whitespace-nowrap">{cost(usage.cost_usd)}</td>
-                <td className="px-4 py-2.5 text-right align-middle font-[tabular-nums] text-muted whitespace-nowrap">
-                  {tokens(usage.input_tokens + usage.output_tokens)} tok
-                </td>
-                <td className="px-4 py-2.5 text-right align-middle font-[tabular-nums] text-muted whitespace-nowrap">
-                  {usage.run_count} run{usage.run_count === 1 ? '' : 's'}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[480px] border-collapse">
+          <tbody>
+            {rows.map((repo) => {
+              const usage = repo.usage!;
+              const pct = totalCost > 0 ? (usage.cost_usd / totalCost) * 100 : 0;
+              return (
+                <tr key={repo.full_name} className="border-b border-border last:border-0">
+                  <td className="px-4 py-2.5 align-middle whitespace-nowrap">{repo.full_name}</td>
+                  <td className="w-full px-4 py-2.5 align-middle">
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-panel-2">
+                      <div className="h-full rounded-full bg-accent" style={{ width: `${Math.max(pct, 2)}%` }} />
+                    </div>
+                  </td>
+                  <td className="px-4 py-2.5 text-right align-middle font-[tabular-nums] text-muted whitespace-nowrap">
+                    {pct.toFixed(0)}%
+                  </td>
+                  <td className="px-4 py-2.5 text-right align-middle font-[tabular-nums] whitespace-nowrap">{cost(usage.cost_usd)}</td>
+                  <td className="px-4 py-2.5 text-right align-middle font-[tabular-nums] text-muted whitespace-nowrap">
+                    {tokens(usage.input_tokens + usage.output_tokens)} tok
+                  </td>
+                  <td className="px-4 py-2.5 text-right align-middle font-[tabular-nums] text-muted whitespace-nowrap">
+                    {usage.run_count} run{usage.run_count === 1 ? '' : 's'}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }

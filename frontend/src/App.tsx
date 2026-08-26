@@ -57,7 +57,7 @@ export default function App() {
       {overview.data?.claude_token_invalid && <ClaudeTokenAlert onOpenSetup={openSetup} />}
       {overview.data?.usage_limit_active && <UsageLimitAlert retryAt={overview.data.usage_limit_retry_at} />}
       <Header onOpenSetup={openSetup} />
-      <main className="mx-auto max-w-[1180px] px-6 py-6">
+      <main className="mx-auto max-w-[1180px] px-4 py-6 sm:px-6">
         <StatsGrid filters={filters} onChange={setFilters} />
         <UsageByRepo />
         <FilterBar filters={filters} onChange={setFilters} />
