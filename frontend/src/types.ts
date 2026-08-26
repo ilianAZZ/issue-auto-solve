@@ -124,6 +124,7 @@ export interface RepoSetup {
   last_error: string | null;
   active: number;
   bootstrap: BootstrapInfo | null;
+  settings: RepoSettingsForm;
 }
 
 export interface RepoConditions {

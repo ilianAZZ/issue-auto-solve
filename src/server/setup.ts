@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { randomBytes } from 'node:crypto';
 import { Octokit } from '@octokit/rest';
-import { repoSettingsPartial, type Env } from '../config/index.js';
+import { repoSettingsPartial, type Env, type RepoSettingsInput } from '../config/index.js';
 import type { Credentials } from '../core/credentials.js';
 import type { Orchestrator } from '../core/orchestrator.js';
 import type { Store } from '../db/store.js';
@@ -25,6 +25,31 @@ const AUTHOR_ASSOCIATIONS = [
 ];
 
 const reachableByGitHub = (url: string) => !/^https?:\/\/(localhost|127\.|0\.0\.0\.0|\[::1\])/.test(url);
+
+// The subset of a repository's stored settings the dashboard's add/configure form edits —
+// filled in with the same empty defaults the form itself starts from, so a repository added
+// before a field existed (or seeded from config.yml without it) still opens with a fully
+// formed, editable shape rather than `undefined`.
+function formSettings(settingsJson: string): {
+  selection: RepoSettingsInput['selection'];
+  prompt: { file: string; variables: Record<string, string> };
+} {
+  const raw = JSON.parse(settingsJson || '{}') as RepoSettingsInput;
+  return {
+    selection: {
+      trusted_associations: raw.selection?.trusted_associations ?? [],
+      whitelist_users: raw.selection?.whitelist_users ?? [],
+      blacklist_users: raw.selection?.blacklist_users ?? [],
+      check_tags: raw.selection?.check_tags ?? false,
+      whitelist_tags: raw.selection?.whitelist_tags ?? [],
+      blacklist_tags: raw.selection?.blacklist_tags ?? [],
+    },
+    prompt: {
+      file: raw.prompt?.file ?? '',
+      variables: raw.prompt?.variables ?? {},
+    },
+  };
+}
 
 const manifestFor = (publicUrl: string, name: string) => ({
   name,
@@ -139,9 +164,15 @@ export function registerSetup(
       last_error: repo.last_error,
       active: store.countActive(repo.id),
       bootstrap: store.lastBootstrap(repo.id) ?? null,
+      settings: formSettings(repo.settings_json),
     })),
   );
 
+  // Also used to update the who-can-trigger / prompt settings of a repository already
+  // watched (the dashboard's "Configure" button) — upsertRepo is an insert-or-update, and
+  // merging onto whatever settings_json already holds keeps fields the dashboard form
+  // doesn't expose (limits, runtime, checks, …), which may have been seeded from
+  // config.yml, from being wiped out by an edit that only touches selection/prompt.
   app.post<{ Body: { repo: string; settings?: unknown } }>('/api/repos', async (request, reply) => {
     const full = request.body?.repo?.trim();
     if (!full || !/^[^/\s]+\/[^/\s]+$/.test(full)) return reply.code(400).send({ error: 'expected "owner/name"' });
@@ -150,7 +181,9 @@ export function registerSetup(
       const details = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`);
       return reply.code(400).send({ error: `invalid settings: ${details.join(', ')}` });
     }
-    store.upsertRepo(full, true, parsed.data);
+    const existing = store.repoByName(full);
+    const base = existing ? (JSON.parse(existing.settings_json || '{}') as Record<string, unknown>) : {};
+    store.upsertRepo(full, true, { ...base, ...parsed.data });
     orchestrator.reload();
     return { ok: true };
   });
