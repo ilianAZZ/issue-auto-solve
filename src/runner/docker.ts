@@ -53,6 +53,9 @@ function entrypoint(settings: RepoSettings, sessionId?: string): string {
     'chown -R "$run_user" /workspace',
   );
   if (sessionId) lines.push('chown -R "$run_user" /session');
+  for (const path of settings.runtime.writable_paths) {
+    lines.push(`chown -R "$run_user" ${shellQuote(path)}`);
+  }
   lines.push('su -s /bin/sh "$run_user" -c \'', '  git config --global --add safe.directory /workspace');
   if (sessionId) {
     // A fresh task has no transcript yet, so a plain --resume would fail; --session-id starts

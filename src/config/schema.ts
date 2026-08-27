@@ -36,6 +36,7 @@ export const repoSettings = z.object({
     docker_socket: z.boolean(),
     env: z.array(z.string()),
     setup: z.array(z.string()),
+    writable_paths: z.array(z.string()),
   }),
   preflight: z.array(z.string()),
   checks: z.array(check),
