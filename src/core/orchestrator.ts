@@ -284,7 +284,7 @@ export class Orchestrator {
         await setLabel(access, task.number, context.settings.labels.waiting, false);
         this.store.transition(task.id, 'discovered', {}, `answered by ${answer.author}`);
         log.info(`#${task.number} on ${context.fullName} was answered, back in the queue`);
-        const message = `💬 ${context.fullName}#${task.number} answered by ${answer.author}, picking it back up`;
+        const message = `💬 ${context.fullName}#${task.number} answered by ${answer.author}, picking it back up\n${task.url}`;
         await this.notify(message);
         await this.fireRuleNotifications(context.fullName, 'discovered', message);
       } catch (error) {
@@ -328,7 +328,7 @@ export class Orchestrator {
         if (work.pullRequestMerged && task.state !== 'merged') {
           this.store.transition(task.id, 'merged', { pr_url: work.pullRequest, branch: task.branch }, 'pull request merged');
           log.info(`#${task.number} on ${context.fullName} merged -> ${work.pullRequest}`);
-          const message = `🎉 ${context.fullName}#${task.number} merged → ${work.pullRequest}`;
+          const message = `🎉 ${context.fullName}#${task.number} merged → ${work.pullRequest}\n${task.url}`;
           await this.notify(message);
           await this.fireRuleNotifications(context.fullName, 'merged', message);
         } else if (work.pullRequestOpen && task.state !== 'pr_open') {
@@ -629,7 +629,7 @@ export class Orchestrator {
       this.store.finishRun(run.id, 'failed', null, String(error));
       this.store.transition(task.id, 'failed', { reason: String(error) }, 'run crashed');
       log.error(`run failed for ${context.fullName}#${task.number}`, { error: String(error) });
-      const message = `❌ ${context.fullName}#${task.number} failed: ${String(error).slice(0, 300)}`;
+      const message = `❌ ${context.fullName}#${task.number} failed: ${String(error).slice(0, 300)}\n${task.url}`;
       await this.notify(message);
       await this.fireRuleNotifications(context.fullName, 'failed', message);
     } finally {
@@ -657,7 +657,7 @@ export class Orchestrator {
       this.store.transition(task.id, 'merged', { pr_url: work.pullRequest, branch }, 'pull request opened and merged');
       discardWorkspace(workspacePath);
       this.discardSession(task.id);
-      const message = `🎉 ${context.fullName}#${task.number} → ${work.pullRequest} (merged)`;
+      const message = `🎉 ${context.fullName}#${task.number} → ${work.pullRequest} (merged)\n${task.url}`;
       await this.notify(message);
       await this.fireRuleNotifications(context.fullName, 'merged', message);
       return;
@@ -668,7 +668,7 @@ export class Orchestrator {
       this.store.transition(task.id, 'pr_open', { pr_url: work.pullRequest, branch }, `pull request opened`);
       discardWorkspace(workspacePath);
       this.discardSession(task.id);
-      const message = `✅ ${context.fullName}#${task.number} → ${work.pullRequest}`;
+      const message = `✅ ${context.fullName}#${task.number} → ${work.pullRequest}\n${task.url}`;
       await this.notify(message);
       await this.fireRuleNotifications(context.fullName, 'pr_open', message);
       return;
@@ -686,7 +686,7 @@ export class Orchestrator {
         'question posted, waiting for an answer',
       );
       discardWorkspace(workspacePath);
-      const message = `❓ ${context.fullName}#${task.number} needs an answer: ${question.body.slice(0, 200)}`;
+      const message = `❓ ${context.fullName}#${task.number} needs an answer: ${question.body.slice(0, 200)}\n${task.url}`;
       await this.notify(message);
       await this.fireRuleNotifications(context.fullName, 'waiting_human', message);
       return;
@@ -704,7 +704,7 @@ export class Orchestrator {
         : `agent exited with code ${exitCode ?? '?'} without opening a pull request`;
     this.store.finishRun(runId, status === 'timeout' ? 'timeout' : 'failed', exitCode, reason, usage);
     this.store.transition(task.id, 'failed', { branch, reason, retry_at: retryAt?.toISOString() ?? null }, reason);
-    const message = `⚠️ ${context.fullName}#${task.number}: ${reason}`;
+    const message = `⚠️ ${context.fullName}#${task.number}: ${reason}\n${task.url}`;
     await this.notify(message);
     await this.fireRuleNotifications(context.fullName, 'failed', message);
   }
