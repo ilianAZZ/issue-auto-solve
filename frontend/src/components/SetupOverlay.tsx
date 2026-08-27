@@ -52,6 +52,7 @@ export function SetupOverlay({ onClose }: { onClose: () => void }) {
 
   const [ghAppName, setGhAppName] = useState('issue-auto-solve');
   const [ghOrg, setGhOrg] = useState('');
+  const [ghUrl, setGhUrl] = useState('');
   const [ghToken, setGhToken] = useState('');
   const [clToken, setClToken] = useState('');
   const [addingRepo, setAddingRepo] = useState(false);
@@ -65,6 +66,7 @@ export function SetupOverlay({ onClose }: { onClose: () => void }) {
   function createGithubApp() {
     const params = new URLSearchParams({ name: ghAppName.trim() });
     if (ghOrg.trim()) params.set('org', ghOrg.trim());
+    if (ghUrl.trim()) params.set('url', ghUrl.trim());
     window.location.href = `/setup/github/new?${params}`;
   }
 
@@ -125,10 +127,24 @@ export function SetupOverlay({ onClose }: { onClose: () => void }) {
                   placeholder="Organisation (optional)"
                   className="min-w-[180px] flex-1 rounded-lg border border-border bg-panel-2 p-2 text-[13px] text-text"
                 />
+                <input
+                  value={ghUrl}
+                  onChange={(e) => setGhUrl(e.target.value)}
+                  placeholder={`Public URL (default: ${status.data?.public_url ?? 'http://localhost:8420'})`}
+                  className="min-w-[240px] flex-1 rounded-lg border border-border bg-panel-2 p-2 text-[13px] text-text"
+                />
                 <Button variant="primary" onClick={createGithubApp}>
                   Create the GitHub App
                 </Button>
               </div>
+              <p className="mt-0 mb-2 text-[12.5px] text-muted">
+                Only needed if you reach this dashboard through a tunnel or a URL different from{' '}
+                <code className="rounded-[5px] border border-border bg-panel-2 px-1.5 py-0.5 text-xs">
+                  {status.data?.public_url ?? 'http://localhost:8420'}
+                </code>
+                — GitHub redirects back here once the App is created, and refuses a webhook URL it can't reach
+                publicly (e.g. <code className="rounded-[5px] border border-border bg-panel-2 px-1.5 py-0.5 text-xs">localhost</code>).
+              </p>
               <details className="mt-2.5">
                 <summary className="cursor-pointer text-[13px] text-muted">Or paste a personal token instead</summary>
                 <p className="text-[12.5px] text-muted">

@@ -55,13 +55,34 @@ const manifestFor = (publicUrl: string, name: string) => ({
   name,
   url: publicUrl,
   redirect_url: `${publicUrl}/setup/github/callback`,
-  // GitHub cannot reach a tunnelled dashboard, and a webhook that always fails is noise.
-  // Polling covers everything it would have delivered.
-  hook_attributes: { url: `${publicUrl}/webhooks/github`, active: reachableByGitHub(publicUrl) },
+  // GitHub rejects the whole manifest — "Hook url is not supported… (localhost)" — the
+  // moment hook_attributes.url isn't publicly reachable, regardless of `active`. So a
+  // local or tunnelled public URL must omit hook_attributes entirely rather than send it
+  // with active:false. Polling covers everything the webhook would have delivered.
+  ...(reachableByGitHub(publicUrl)
+    ? { hook_attributes: { url: `${publicUrl}/webhooks/github`, active: true } }
+    : {}),
   public: false,
   default_permissions: { issues: 'write', pull_requests: 'write', contents: 'write', metadata: 'read' },
   default_events: ['issues', 'issue_comment', 'pull_request'],
 });
+
+// Lets each user point the manifest at the URL they actually reach the dashboard on —
+// PUBLIC_URL is one fixed value for the whole deployment, but a tunnel (ssh -L, ngrok,
+// cloudflared) gives a different host per person running it, and there's no way to know
+// that ahead of time. Falls back to PUBLIC_URL when the field is left blank.
+function resolvePublicUrl(raw: string | undefined, fallback: string): { url: string } | { error: string } {
+  const trimmed = raw?.trim();
+  if (!trimmed) return { url: fallback };
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return { error: 'invalid public url' };
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return { error: 'invalid public url' };
+  return { url: parsed.toString().replace(/\/$/, '') };
+}
 
 export function registerSetup(
   app: FastifyInstance,
@@ -84,14 +105,16 @@ export function registerSetup(
 
   // A browser form is the only way into GitHub's App manifest flow: it creates the App
   // with the right permissions and events, then hands the credentials back once.
-  app.get<{ Querystring: { org?: string; name?: string } }>('/setup/github/new', async (request, reply) => {
+  app.get<{ Querystring: { org?: string; name?: string; url?: string } }>('/setup/github/new', async (request, reply) => {
     const name = request.query.name?.trim() || 'issue-auto-solve';
+    const resolved = resolvePublicUrl(request.query.url, env.PUBLIC_URL);
+    if ('error' in resolved) return reply.code(400).send(resolved.error);
     const nonce = randomBytes(16).toString('hex');
     pending.add(nonce);
     const action = request.query.org
       ? `https://github.com/organizations/${request.query.org}/settings/apps/new`
       : 'https://github.com/settings/apps/new';
-    const manifest = JSON.stringify(manifestFor(env.PUBLIC_URL, name)).replace(/"/g, '&quot;');
+    const manifest = JSON.stringify(manifestFor(resolved.url, name)).replace(/"/g, '&quot;');
     reply.type('text/html');
     return `<!doctype html><meta charset="utf-8"><title>Creating the GitHub App…</title>
 <body style="font:14px system-ui;padding:40px">
