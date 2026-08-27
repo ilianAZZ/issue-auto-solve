@@ -51,7 +51,11 @@ later. When you later put a reverse proxy with TLS in front, set `BIND=0.0.0.0` 
 ## 2. The setup screen
 
 1. **GitHub** — *Create the GitHub App*. GitHub asks you to confirm, then sends you to the
-   install screen: pick the repositories. The credentials come back on their own.
+   install screen: pick the repositories. The credentials come back on their own. If
+   you're reaching the dashboard through the `ssh -L` tunnel above, fill in the **Public
+   URL** field with the address GitHub can actually reach (or leave it blank to skip the
+   webhook and rely on polling) — otherwise GitHub rejects the manifest with "Hook url is
+   not supported… (localhost)".
 2. **Claude** — on a machine where you are logged in: `claude setup-token`, paste the
    result. Nothing is stored in clear text.
 3. **Repositories** — add them. Leave `dispatch_enabled: false` for now.
