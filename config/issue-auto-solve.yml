@@ -58,6 +58,10 @@ defaults:
       - apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates gnupg
       - install -d -m 755 /etc/apt/keyrings && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o /etc/apt/keyrings/githubcli-archive-keyring.gpg && chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list && apt-get update && apt-get install -y --no-install-recommends gh
       - npm install -g @anthropic-ai/claude-code
+    # Extra paths inside the image handed to the non-root run user, alongside /workspace.
+    # A custom image can bake in a toolchain (e.g. an SDK cache) owned by root; the agent
+    # has no sudo once handed off, so anything it needs to write there must be listed here.
+    writable_paths: []
   preflight: []
   checks: []
   prompt:

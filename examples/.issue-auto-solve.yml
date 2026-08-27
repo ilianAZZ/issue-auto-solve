@@ -27,6 +27,10 @@ runtime:
   env: [ENVIRONMENT_PASSWORD]  # forwarded from the orchestrator environment
   setup:
     - corepack enable
+  # This image bakes in the Flutter SDK owned by root; flutter analyze/test need to write
+  # their cache under it, and the agent has no sudo once handed off to the non-root run
+  # user, so the path is listed here to be chowned before that handoff.
+  writable_paths: [/sdks/flutter]
 
 preflight:
   - pnpm install --frozen-lockfile

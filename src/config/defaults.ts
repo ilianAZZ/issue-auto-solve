@@ -17,7 +17,7 @@ export const builtinDefaults: RepoSettings = {
     blacklist_tags: [],
   },
   limits: { max_concurrent_runs: 1, timeout_minutes: 45, max_runs_per_task: 2 },
-  runtime: { image: 'node:24-slim', docker_socket: false, env: [], setup: [] },
+  runtime: { image: 'node:24-slim', docker_socket: false, env: [], setup: [], writable_paths: [] },
   preflight: [],
   checks: [],
   prompt: { file: null, variables: {} },
